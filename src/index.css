@@ -1,0 +1,206 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+body {
+  font-family: 'Mulish', sans-serif;
+  background: oklch(91% 0.008 250);
+}
+
+a { color: oklch(58% 0.15 238); }
+a:hover { color: oklch(48% 0.15 238); }
+
+button, input {
+  font-family: inherit;
+}
+
+:root {
+  /* ---- color: brand / primary ---- */
+  --color-primary-tint: oklch(93% 0.03 235);     /* icon chips, avatar bg */
+  --color-bg-onboarding: oklch(88% 0.05 235);    /* onboarding/completion bg */
+  --color-primary: oklch(68% 0.14 235);          /* CTA fill */
+  --color-primary-dark: oklch(58% 0.15 238);     /* links, secondary CTA */
+  --color-primary-ink: oklch(45% 0.1 235);       /* text on primary-tint */
+
+  /* ---- color: semantic ---- */
+  --color-success: oklch(76% 0.15 155);
+  --color-success-ink: oklch(45% 0.13 155);
+  --color-danger: oklch(70% 0.15 30);
+  --color-danger-ink: oklch(55% 0.14 30);
+  --color-warning-tint: oklch(90% 0.1 60 / 0.35);
+  --color-warning-ink: oklch(40% 0.1 60);
+
+  /* ---- color: neutrals ---- */
+  --color-bg-app: oklch(95% 0.025 235);
+  --color-surface: #fff;
+  --color-surface-tint: oklch(97% 0.008 250);
+  --color-text-strong: oklch(28% 0.06 250);      /* headings */
+  --color-ink-soft: oklch(32% 0.06 250);
+  --color-text-muted: oklch(50% 0.04 250);
+  --color-text-subtle: oklch(55% 0.03 250);
+  --color-border: oklch(93% 0.01 250);
+  --color-locked: oklch(89% 0.02 235);
+  --color-locked-bg: oklch(90% 0.008 250);
+  --color-scrim: oklch(30% 0.06 250);
+
+  /* ---- radius scale ---- */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 22px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-full: 999px;
+
+  /* ---- spacing scale ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  /* ---- type scale ---- */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+  --text-4xl: 34px;
+
+  /* ---- shadow ---- */
+  --shadow-card: 0 6px 20px oklch(50% 0.05 250 / 0.08);
+  --shadow-elevated: 0 8px 20px oklch(60% 0.1 235 / 0.35);
+  --shadow-float: 0 12px 28px oklch(60% 0.1 235 / 0.35);
+
+  /* ---- motion ---- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+
+  /* ---- touch target (children need generous hit areas) ---- */
+  --touch-target-min: 44px;
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes pulseLetter {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.14); }
+}
+
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+@keyframes starPop {
+  0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+  70% { transform: scale(1.2) rotate(6deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(68% 0.14 235 / 0.4); }
+  50% { box-shadow: 0 0 0 10px oklch(68% 0.14 235 / 0); }
+}
+
+/* ---- interaction primitives ----
+   Any element that responds to taps gets consistent, visible feedback:
+   a slight scale-down on press plus a brightness lift on hover for
+   pointer users. This is layered on top of inline styles via className. */
+.pressable {
+  transition: transform var(--duration-fast) var(--ease-standard),
+    filter var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.pressable:hover {
+  filter: brightness(1.04);
+}
+.pressable:active {
+  transform: scale(0.96);
+  filter: brightness(0.97);
+}
+
+.card-pressable {
+  transition: transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+}
+.card-pressable:hover {
+  box-shadow: 0 8px 24px oklch(50% 0.05 250 / 0.13);
+}
+.card-pressable:active {
+  transform: scale(0.98);
+}
+
+/* Focus is only shown for keyboard users (Tab), never on tap/click,
+   so it stays invisible during normal touch use but keeps the app
+   navigable and WCAG 2.4.7-compliant for anyone using a keyboard. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 3px solid var(--color-primary-dark);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.text-input {
+  outline: none;
+  transition: border-color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
+.text-input:focus-visible {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 4px oklch(68% 0.14 235 / 0.18);
+  outline: none;
+}
+
+.app-stage {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.phone-frame {
+  width: 402px;
+  height: 874px;
+  background: var(--color-bg-app);
+  border-radius: 44px;
+  border: 10px solid #111;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px oklch(20% 0.02 250 / 0.35);
+}
+
+@media (max-width: 460px) {
+  .app-stage { padding: 0; }
+  .phone-frame {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    border: none;
+  }
+}
