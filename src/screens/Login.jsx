@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { PrimaryButton } from '../components/Button.jsx';
 import { loginWithEmail } from '../lib/supabaseClient.js';
+import Mascot from '../components/Mascot.jsx';
+import InstallButton from '../components/InstallButton.jsx';
 
 export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -29,22 +31,23 @@ export default function Login({ onLoginSuccess }) {
   return (
     <div
       style={{
+        position: 'relative',
+        overflow: 'hidden',
         minHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--color-bg-onboarding)',
+        background: 'linear-gradient(180deg, oklch(88% 0.05 235) 0%, oklch(92% 0.03 235) 100%)',
         padding: '58px 32px 40px',
         textAlign: 'center',
       }}
     >
-      <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'oklch(72% 0.13 235)', position: 'relative' }}>
-        <div style={{ position: 'absolute', width: 18, height: 18, borderRadius: '50%', background: '#fff', top: 20, left: 18 }} />
-        <div style={{ position: 'absolute', width: 18, height: 18, borderRadius: '50%', background: '#fff', top: 20, right: 18 }} />
-      </div>
+      <div style={{ position: 'absolute', top: -40, left: -40, width: 150, height: 150, borderRadius: '50%', background: 'oklch(100% 0 0 / 0.2)' }} />
+      <div style={{ position: 'absolute', bottom: -30, right: -40, width: 130, height: 130, borderRadius: '50%', background: 'oklch(100% 0 0 / 0.15)' }} />
+      <Mascot size={96} duration="3.4s" />
       <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 24, color: 'var(--color-text-strong)', marginTop: 22 }}>
-        Mi Aventura de Leer
+        Ruta de Lectura Implacable
       </div>
       <div style={{ fontSize: 15, color: 'oklch(45% 0.04 250)', marginTop: 8 }}>
         Inicia sesión con tu correo
@@ -80,6 +83,7 @@ export default function Login({ onLoginSuccess }) {
         <PrimaryButton type="submit" disabled={loading} style={{ marginTop: 20, width: '100%' }}>
           {loading ? 'Entrando…' : 'Iniciar sesión'}
         </PrimaryButton>
+        <InstallButton style={{ marginTop: 14 }} />
       </form>
       <div style={{ marginTop: 40, fontSize: 12, color: 'oklch(55% 0.03 250)' }}>
         ¿Necesitas ayuda? Contáctanos:

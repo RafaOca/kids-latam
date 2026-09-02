@@ -20,13 +20,14 @@ export default function LetterLearn({ goToPhaseDetail, currentLetter, isPlaying,
       </div>
       <button
         onClick={playSound}
-        style={{ marginTop: 10, padding: '14px 26px', border: 'none', borderRadius: 20, background: 'oklch(93% 0.03 235)', color: 'oklch(45% 0.1 235)', fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, cursor: 'pointer' }}
+        className="pressable"
+        style={{ marginTop: 10, padding: '14px 26px', border: 'none', borderRadius: 20, background: 'var(--color-primary-tint)', color: 'var(--color-primary-ink)', fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, cursor: 'pointer' }}
       >
         🔊 {currentLetter.sound}
       </button>
-      <div style={{ marginTop: 28, background: '#fff', borderRadius: 20, padding: '18px 20px', maxWidth: 280, boxShadow: 'var(--shadow-card)', position: 'relative' }}>
+      <div style={{ marginTop: 28, background: '#fff', borderRadius: 20, padding: '18px 20px', maxWidth: 280, boxShadow: 'var(--shadow-card)', position: 'relative', borderLeft: '4px solid var(--color-primary)' }}>
         <div style={{ fontSize: 15, color: 'oklch(35% 0.05 250)', textAlign: 'center' }}>
-          Esta letra hace {currentLetter.sound}.
+          💡 Esta letra hace {currentLetter.sound}.
         </div>
       </div>
       <PrimaryButton onClick={playSound} style={{ marginTop: 28, padding: 18, borderRadius: 22, fontSize: 18 }}>

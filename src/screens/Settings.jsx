@@ -9,7 +9,23 @@ export default function Settings({ goProfile, soundOn, toggleSound }) {
         Configuración
       </div>
       <Card radius="var(--radius-xl)" padding="18px 20px" style={{ marginTop: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 15, color: 'var(--color-ink-soft)' }}>Sonido</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--color-primary-tint)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 16,
+            }}
+          >
+            🔊
+          </div>
+          <span style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 15, color: 'var(--color-ink-soft)' }}>Sonido</span>
+        </div>
         <button
           onClick={toggleSound}
           className="pressable"

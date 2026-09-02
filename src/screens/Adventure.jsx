@@ -6,22 +6,35 @@ export default function Adventure({ phasesSummary, lockedMessage, lockedToastVis
     <div style={{ padding: 0 }}>
       <div
         style={{
-          fontFamily: "'Fredoka', sans-serif",
-          fontWeight: 700,
-          fontSize: 15,
-          letterSpacing: '0.08em',
-          color: '#fff',
-          textAlign: 'center',
-          textTransform: 'uppercase',
-          textShadow: '0 2px 6px oklch(20% 0.05 250 / 0.5)',
           position: 'absolute',
-          top: 58,
+          top: 50,
           left: 0,
           right: 0,
           zIndex: 3,
+          display: 'flex',
+          justifyContent: 'center',
         }}
       >
-        Mi aventura de leer
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontFamily: "'Fredoka', sans-serif",
+            fontWeight: 700,
+            fontSize: 14,
+            letterSpacing: '0.06em',
+            color: '#fff',
+            textTransform: 'uppercase',
+            background: 'oklch(30% 0.06 250 / 0.4)',
+            backdropFilter: 'blur(4px)',
+            padding: '8px 18px',
+            borderRadius: 'var(--radius-full)',
+            boxShadow: '0 4px 14px oklch(20% 0.05 250 / 0.25)',
+          }}
+        >
+          🗺️ Mi aventura de leer
+        </div>
       </div>
       <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 874 }}>
         <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
@@ -76,23 +89,53 @@ export default function Adventure({ phasesSummary, lockedMessage, lockedToastVis
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 6px 18px oklch(20% 0.05 250 / 0.25)',
+                  boxShadow: ph.isUnlocked
+                    ? `0 6px 18px oklch(20% 0.05 250 / 0.25), 0 0 0 6px ${ph.borderColor.replace(')', ' / 0.2)')}`
+                    : '0 6px 18px oklch(20% 0.05 250 / 0.25)',
                   position: 'relative',
                   animation: ph.pulseAnim,
                 }}
               >
-                {ph.isLocked && <div style={{ fontSize: 32 }}>🔒</div>}
+                {ph.isLocked && <div style={{ fontSize: 32, opacity: 0.7 }}>🔒</div>}
                 {ph.isUnlocked && (
-                  <div style={{ width: 46, height: 46, borderRadius: 14, background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 14 }}>
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 14,
+                      background: `linear-gradient(150deg, ${ph.borderColor} 0%, var(--color-primary) 100%)`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontFamily: "'Fredoka', sans-serif",
+                      fontWeight: 700,
+                      fontSize: 14,
+                      boxShadow: '0 3px 8px oklch(20% 0.1 250 / 0.25)',
+                    }}
+                  >
                     {ph.badgeText}
                   </div>
                 )}
               </div>
-              <div style={{ background: '#fff', borderRadius: 12, padding: '4px 10px', marginTop: 8, boxShadow: '0 3px 10px oklch(20% 0.05 250 / 0.15)' }}>
-                <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 12, color: 'oklch(30% 0.06 250)', textAlign: 'center', lineHeight: 1.25 }}>
-                  {ph.num}. {ph.title}
+              <div style={{ background: '#fff', borderRadius: 14, padding: '6px 12px', marginTop: 8, boxShadow: '0 3px 10px oklch(20% 0.05 250 / 0.15)', minWidth: 94 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: ph.borderColor, flexShrink: 0 }} />
+                  <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 12, color: 'oklch(30% 0.06 250)', textAlign: 'center', lineHeight: 1.25 }}>
+                    {ph.num}. {ph.title}
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: 'oklch(55% 0.03 250)', textAlign: 'center' }}>
+                <div style={{ marginTop: 4, height: 5, borderRadius: 'var(--radius-full)', background: 'oklch(92% 0.01 250)', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      borderRadius: 'var(--radius-full)',
+                      width: ph.total ? `${Math.min(100, (ph.doneCount / ph.total) * 100)}%` : 0,
+                      background: ph.borderColor,
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: 'oklch(55% 0.03 250)', textAlign: 'center', marginTop: 3, fontWeight: 700 }}>
                   {ph.doneCount} / {ph.total}
                 </div>
               </div>

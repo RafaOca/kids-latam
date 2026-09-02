@@ -4,6 +4,10 @@ import {
   fetchChildProfiles,
   createChildProfile,
   updateChildProfileProgress,
+  updateChildProfilePractice,
+  updateChildProfilePhase1,
+  updateChildProfileEconomy,
+  updateChildProfileReviewState,
 } from './lib/supabaseClient.js';
 import {
   phaseBadges,
@@ -12,15 +16,26 @@ import {
   words,
   adventureSteps,
   avatars,
+  phase1Days,
+  phase1LetterSequence,
+  PHASE1_CHECKPOINT_DAYS,
   getLetter,
   getSyllable,
   getWord,
   getAvatar,
   adventureIndexFor,
   stepStatus,
+  COIN_REWARDS,
+  DEFAULT_ECONOMY,
 } from './data.js';
+import { recordWarmUpAnswer } from './lib/spacedRepetitionEngine.js';
+import { isStandalone, isPwaRememberValid, markPwaRemember, clearPwaRemember } from './lib/pwa.js';
+import { initPwaUpdates } from './lib/pwaRegister.js';
 
 import BottomNav from './components/BottomNav.jsx';
+import RewardModal from './components/RewardModal.jsx';
+import CalentamientoModal, { CheckpointView } from './components/CalentamientoModal.jsx';
+import UpdatePrompt from './components/UpdatePrompt.jsx';
 
 import Onboarding1 from './screens/Onboarding1.jsx';
 import Onboarding2 from './screens/Onboarding2.jsx';
@@ -37,11 +52,13 @@ import Help from './screens/Help.jsx';
 import ParentGate from './screens/ParentGate.jsx';
 import ParentDashboard from './screens/ParentDashboard.jsx';
 import PhaseDetail from './screens/PhaseDetail.jsx';
+import Phase1LetterActivity from './screens/Phase1LetterActivity.jsx';
 import LetterLearn from './screens/LetterLearn.jsx';
 import LetterActivity from './screens/LetterActivity.jsx';
 import SyllableBlend from './screens/SyllableBlend.jsx';
 import WordBlend from './screens/WordBlend.jsx';
 import Completion from './screens/Completion.jsx';
+import Tienda from './screens/Tienda.jsx';
 
 const NAV_SCREENS = ['home', 'adventure', 'achievements', 'profile'];
 
@@ -69,7 +86,23 @@ const initialState = {
   lockedMessage: '',
   lockedToastVisible: false,
   transitionOpacity: 0,
+  phase1ActiveIndex: null,
+  screenBeforeTienda: 'home',
+  rewardOpen: false,
+  rewardAmount: 0,
+  rewardKind: 'mini',
+  rewardSubtitle: '',
+  coinBumpAmount: 0,
+  coinBumpKey: 0,
+  reviewGateOpen: false,
+  reviewGateVariant: 'warmup', // 'warmup' | 'checkpoint'
+  reviewGateDay: null,
+  reviewGatePendingIndex: null,
+  updateAvailable: false,
 };
+
+const DEFAULT_REVIEW_STATE = { mastery: {}, warmupCompletedDays: [], checkpointsCompleted: [] };
+const getReviewState = (p) => ({ ...DEFAULT_REVIEW_STATE, ...(p?.reviewState || {}) });
 
 export default function App() {
   const [state, setState] = useState(initialState);
@@ -81,6 +114,10 @@ export default function App() {
 
   // ---- auth (Supabase) ----
   const loadProfilesAndEnter = async (session) => {
+    // Refreshes the "stay logged in for 1 week" window on every successful
+    // boot/login while running as an installed PWA — a normal browser tab
+    // relies on Supabase's own persisted session instead (see ./lib/pwa.js).
+    markPwaRemember();
     try {
       const profiles = await fetchChildProfiles();
       update({
@@ -98,15 +135,24 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      const session = data.session;
-      if (session) {
-        loadProfilesAndEnter(session);
-      } else {
-        update({ authChecking: false, userEmail: null, screen: 'login' });
-      }
-    });
+    // Installed-PWA-only gate: if the 1-week "remember me" window has lapsed,
+    // force a fresh login instead of silently riding Supabase's own
+    // (much longer-lived) refresh token.
+    const bootCheck =
+      isStandalone() && !isPwaRememberValid()
+        ? supabase.auth.signOut()
+        : Promise.resolve();
+    bootCheck.then(() =>
+      supabase.auth.getSession().then(({ data }) => {
+        if (!active) return;
+        const session = data.session;
+        if (session) {
+          loadProfilesAndEnter(session);
+        } else {
+          update({ authChecking: false, userEmail: null, screen: 'login' });
+        }
+      }),
+    );
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
@@ -125,10 +171,60 @@ export default function App() {
     loadProfilesAndEnter(session);
   };
 
+  // ---- PWA update lifecycle ----
+  const applyUpdateRef = useRef(() => {});
+  useEffect(() => {
+    applyUpdateRef.current = initPwaUpdates(() => update({ updateAvailable: true }));
+  }, []);
+  const applyUpdate = () => applyUpdateRef.current();
+
+  // ---- practice time / days tracking (real usage data for the parent area) ----
+  const PRACTICE_EXCLUDED_SCREENS = [
+    'login', 'profile-switcher', 'parent-gate', 'parent-dashboard', 'settings', 'help',
+  ];
+  useEffect(() => {
+    if (state.authChecking || !state.activeProfileId) return undefined;
+    if (PRACTICE_EXCLUDED_SCREENS.includes(state.screen)) return undefined;
+    const activeId = state.activeProfileId;
+    const TICK_SECONDS = 15;
+    const interval = setInterval(() => {
+      const today = new Date().toISOString().slice(0, 10);
+      update((s) => {
+        const profiles = s.profiles.map((p) => {
+          if (p.id !== activeId) return p;
+          const practiceDays = p.practiceDays.includes(today) ? p.practiceDays : [...p.practiceDays, today];
+          return { ...p, practiceSeconds: (p.practiceSeconds || 0) + TICK_SECONDS, practiceDays };
+        });
+        const updated = profiles.find((p) => p.id === activeId);
+        if (updated) {
+          updateChildProfilePractice(activeId, {
+            practiceSeconds: updated.practiceSeconds,
+            practiceDays: updated.practiceDays,
+          }).catch((e) => console.error('No se pudo guardar el tiempo de práctica', e));
+        }
+        return { profiles };
+      });
+    }, TICK_SECONDS * 1000);
+    return () => clearInterval(interval);
+  }, [state.authChecking, state.activeProfileId, state.screen]);
+
   const getActiveProfile = () =>
-    state.profiles.find((p) => p.id === state.activeProfileId) || { name: '', avatarId: 'perro', progressIndex: 0 };
+    state.profiles.find((p) => p.id === state.activeProfileId) ||
+    { name: '', avatarId: 'perro', progressIndex: 0, phase1DoneLetters: 0, economy: DEFAULT_ECONOMY, reviewState: DEFAULT_REVIEW_STATE };
 
   // ---- navigation ----
+  const navigateWithTransition = (nextScreen, extra = {}) => {
+    update((s) => (s.screen === nextScreen ? s : { transitionOpacity: 1 }));
+    clearTimeout(transTimer1.current);
+    clearTimeout(transTimer2.current);
+    transTimer1.current = setTimeout(
+      () => update({ screen: nextScreen, lockedToastVisible: false, ...extra }),
+      280,
+    );
+    transTimer2.current = setTimeout(() => update({ transitionOpacity: 0 }), 560);
+  };
+  // Bottom-tab navigation switches instantly (no fade) — the transition
+  // effect is reserved for entering a level, like openPhaseDetailWithTransition.
   const goHome = () => update({ screen: 'home', lockedToastVisible: false });
   const goAdventure = () => update({ screen: 'adventure', lockedToastVisible: false });
   const goAchievements = () => update({ screen: 'achievements', lockedToastVisible: false });
@@ -164,29 +260,38 @@ export default function App() {
   const switchProfile = (id) => update({ activeProfileId: id, screen: 'home' });
   const logOut = () => {
     update({ screen: 'login' });
+    clearPwaRemember();
     supabase.auth.signOut();
   };
 
   // ---- parent gate ----
+  // Uses a simple one-digit multiplication: trivial mental math for an
+  // adult, but still an effective gate since the kids using this app are
+  // just learning to read letters and don't know multiplication yet.
+  const randomMathPair = () => ({
+    a: 2 + Math.floor(Math.random() * 8),
+    b: 2 + Math.floor(Math.random() * 8),
+  });
   const startParentGate = () => {
-    const a = 12 + Math.floor(Math.random() * 30);
-    const b = 12 + Math.floor(Math.random() * 30);
+    const { a, b } = randomMathPair();
     update({ mathA: a, mathB: b, mathInput: '', mathError: false, screen: 'parent-gate' });
   };
   const setMathInput = (value) => update({ mathInput: value });
   const checkParentGate = () => {
     update((s) => {
-      if (parseInt(s.mathInput, 10) === s.mathA + s.mathB) {
+      if (parseInt(s.mathInput, 10) === s.mathA * s.mathB) {
         return { screen: 'parent-dashboard' };
       }
-      const a = 12 + Math.floor(Math.random() * 30);
-      const b = 12 + Math.floor(Math.random() * 30);
+      const { a, b } = randomMathPair();
       return { mathA: a, mathB: b, mathInput: '', mathError: true };
     });
   };
 
   // ---- levels ----
-  const goToPhaseDetail = () => update({ screen: 'phase-detail', lockedToastVisible: false });
+  // Back navigation into/out of a phase also gets the fade transition (only
+  // bottom-tab switches stay instant).
+  const goToPhaseDetail = () => navigateWithTransition('phase-detail');
+  const backFromPhaseDetail = () => navigateWithTransition('adventure');
   const goToLearn = () => update({ screen: 'letter-learn', quizResult: null, quizSelected: null });
 
   const showLockedMessage = () =>
@@ -203,19 +308,245 @@ export default function App() {
 
   const openLevel = (type, id, locked) => {
     if (locked) { showLockedMessage(); return; }
-    update({ lockedToastVisible: false });
-    if (type === 'letter') {
-      const letter = getLetter(id);
-      const pool = letters.filter((l) => l.id !== id);
-      const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 2);
-      const opts = [letter, ...shuffled].sort(() => Math.random() - 0.5);
-      update({ currentItemType: 'letter', currentItemId: id, activePhase: 1, quizOptions: opts, quizSelected: null, quizResult: null, screen: 'letter-learn' });
-    } else if (type === 'syllable') {
-      const sy = getSyllable(id);
-      update({ currentItemType: 'syllable', currentItemId: id, activePhase: sy.group === 'simple' ? 2 : 3, blendStage: 0, screen: 'phase2-blend' });
-    } else {
-      update({ currentItemType: 'word', currentItemId: id, activePhase: 4, blendStage: 0, screen: 'phase3-blend' });
+    update({ transitionOpacity: 1, lockedToastVisible: false });
+    clearTimeout(transTimer1.current);
+    clearTimeout(transTimer2.current);
+    transTimer1.current = setTimeout(() => {
+      if (type === 'letter') {
+        const letter = getLetter(id);
+        const pool = letters.filter((l) => l.id !== id);
+        const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 2);
+        const opts = [letter, ...shuffled].sort(() => Math.random() - 0.5);
+        update({ currentItemType: 'letter', currentItemId: id, activePhase: 1, quizOptions: opts, quizSelected: null, quizResult: null, screen: 'letter-learn' });
+      } else if (type === 'syllable') {
+        const sy = getSyllable(id);
+        update({ currentItemType: 'syllable', currentItemId: id, activePhase: sy.group === 'simple' ? 2 : 3, blendStage: 0, screen: 'phase2-blend' });
+      } else {
+        update({ currentItemType: 'word', currentItemId: id, activePhase: 4, blendStage: 0, screen: 'phase3-blend' });
+      }
+    }, 280);
+    transTimer2.current = setTimeout(() => update({ transitionOpacity: 0 }), 560);
+  };
+
+  // Phase 1 letters unlock sequentially (one at a time, not one per day).
+  // Tapping an unlocked (or already-done, for review) letter opens its
+  // 4-level activity screen; only finishing all 4 levels there marks the
+  // letter as done. Only the final "done" boolean is persisted per profile
+  // (not per-sublevel progress), same pattern as progressIndex/practice.
+  const openPhase1Letter = (index) => {
+    const profile = getActiveProfile();
+    const done = profile.phase1DoneLetters || 0;
+    if (index > done) { showLockedMessage(); return; }
+
+    // Spaced-repetition gate: the very first time the child unlocks a new
+    // day's first letter (Day 2+), it must go through a Calentamiento
+    // warm-up first — or a longer Checkpoint round on designated review
+    // days — before the new letter loads. Re-opening an already-learned
+    // letter (review) or a letter that isn't the day's first never gates.
+    const seqItem = phase1LetterSequence[index];
+    const isFirstOfDay = index === 0 || phase1LetterSequence[index - 1].day !== seqItem.day;
+    const isFreshUnlock = index === done;
+    if (isFirstOfDay && isFreshUnlock) {
+      const learnedIds = phase1LetterSequence.slice(0, index).map((l) => l.id);
+      if (learnedIds.length > 0) {
+        const rs = getReviewState(profile);
+        if (PHASE1_CHECKPOINT_DAYS.includes(seqItem.day) && !rs.checkpointsCompleted.includes(seqItem.day)) {
+          update({ reviewGateOpen: true, reviewGateVariant: 'checkpoint', reviewGateDay: seqItem.day, reviewGatePendingIndex: index, lockedToastVisible: false });
+          return;
+        }
+        if (seqItem.day >= 2 && !rs.warmupCompletedDays.includes(seqItem.day)) {
+          update({ reviewGateOpen: true, reviewGateVariant: 'warmup', reviewGateDay: seqItem.day, reviewGatePendingIndex: index, lockedToastVisible: false });
+          return;
+        }
+      }
     }
+    navigateWithTransition('phase1-letter-activity', { phase1ActiveIndex: index, lockedToastVisible: false });
+  };
+
+  // A tap during the warm-up/checkpoint round: update the letter's mastery
+  // entry immediately (local state only — the full review-state blob is
+  // persisted once, in handleReviewGateComplete, to avoid a network write
+  // per tap).
+  const handleReviewAnswer = (letterId, correct) => {
+    const activeId = state.activeProfileId;
+    const day = state.reviewGateDay;
+    update((s) => ({
+      profiles: s.profiles.map((p) => {
+        if (p.id !== activeId) return p;
+        const rs = getReviewState(p);
+        return { ...p, reviewState: { ...rs, mastery: recordWarmUpAnswer(rs.mastery, letterId, correct, day) } };
+      }),
+    }));
+  };
+
+  // Finished all rounds: mark the day (or checkpoint) as done, persist the
+  // review-state blob, award the coins, close the gate, and resume straight
+  // into the originally-tapped letter.
+  const handleReviewGateComplete = (coinsEarned) => {
+    const activeId = state.activeProfileId;
+    const variant = state.reviewGateVariant;
+    const day = state.reviewGateDay;
+    const pendingIndex = state.reviewGatePendingIndex;
+    update((s) => ({
+      profiles: s.profiles.map((p) => {
+        if (p.id !== activeId) return p;
+        const rs = getReviewState(p);
+        const nextRs =
+          variant === 'checkpoint'
+            ? { ...rs, checkpointsCompleted: [...rs.checkpointsCompleted, day] }
+            : { ...rs, warmupCompletedDays: [...rs.warmupCompletedDays, day] };
+        updateChildProfileReviewState(activeId, nextRs).catch((e) =>
+          console.error('No se pudo guardar el progreso de repaso', e),
+        );
+        return { ...p, reviewState: nextRs };
+      }),
+      reviewGateOpen: false,
+    }));
+    awardCoins(
+      coinsEarned,
+      variant === 'checkpoint' ? 'checkpoint' : 'mini',
+      variant === 'checkpoint' ? '¡Repaso completo!' : '¡Calentamiento completo!',
+    );
+    if (pendingIndex != null) {
+      navigateWithTransition('phase1-letter-activity', { phase1ActiveIndex: pendingIndex });
+    }
+  };
+
+  const completePhase1Letter = () => {
+    const activeId = state.activeProfileId;
+    const index = state.phase1ActiveIndex;
+    const done = getActiveProfile().phase1DoneLetters || 0;
+    const newDone = Math.max(done, index + 1);
+    if (newDone !== done) {
+      update((s) => ({
+        profiles: s.profiles.map((p) => (p.id === activeId ? { ...p, phase1DoneLetters: newDone } : p)),
+      }));
+      updateChildProfilePhase1(activeId, newDone).catch((e) =>
+        console.error('No se pudo guardar el avance de la fase 1', e),
+      );
+
+      // Was this the last letter of its day? phase1LetterSequence is
+      // globally ordered and each item carries its `day` number, so the day
+      // just finished the moment the next item's day changes (or we ran out
+      // of letters entirely).
+      const finishedDayComplete =
+        index === phase1LetterSequence.length - 1 ||
+        phase1LetterSequence[index + 1]?.day !== phase1LetterSequence[index].day;
+      const finishedAllPhase1 = newDone >= phase1LetterSequence.length;
+
+      if (finishedAllPhase1) {
+        awardCoins(COIN_REWARDS.checkpoint, 'checkpoint', '¡Completaste todas las letras!');
+      } else if (finishedDayComplete) {
+        awardCoins(COIN_REWARDS.dayComplete, 'day', '¡Día completo!');
+      } else {
+        awardCoins(COIN_REWARDS.letterComplete, 'letter', '¡Letra completa!');
+      }
+    }
+    navigateWithTransition('phase-detail');
+  };
+
+  const exitPhase1Letter = () => navigateWithTransition('phase-detail');
+
+  const onPhase1MiniActivity = () => awardCoins(COIN_REWARDS.miniActivity, 'mini');
+
+  // ---- economy: coins & shop ----
+  const awardCoins = (amount, kind = 'mini', subtitle = '') => {
+    const activeId = state.activeProfileId;
+    if (!activeId || !amount) return;
+    update((s) => {
+      const profiles = s.profiles.map((p) => {
+        if (p.id !== activeId) return p;
+        const economy = { ...DEFAULT_ECONOMY, ...(p.economy || {}) };
+        const newEconomy = { ...economy, coins: economy.coins + amount };
+        updateChildProfileEconomy(activeId, newEconomy).catch((e) =>
+          console.error('No se pudo guardar las monedas', e),
+        );
+        return { ...p, economy: newEconomy };
+      });
+      return {
+        profiles,
+        rewardOpen: true,
+        rewardAmount: amount,
+        rewardKind: kind,
+        rewardSubtitle: subtitle,
+        coinBumpAmount: amount,
+        coinBumpKey: Date.now(),
+      };
+    });
+  };
+  const closeReward = () => update({ rewardOpen: false });
+
+  const goTienda = () => update((s) => (s.screen === 'tienda' ? s : { screen: 'tienda', screenBeforeTienda: s.screen }));
+  const closeTienda = () => update((s) => ({ screen: s.screenBeforeTienda || 'home' }));
+
+  const buyShopItem = (type, item) => {
+    const activeId = state.activeProfileId;
+    if (!activeId) return;
+    update((s) => {
+      const p = s.profiles.find((x) => x.id === activeId);
+      if (!p) return {};
+      const economy = { ...DEFAULT_ECONOMY, ...(p.economy || {}) };
+      if (economy.coins < item.price) return {};
+      let newEconomy;
+      if (type === 'avatar') {
+        newEconomy = {
+          ...economy,
+          coins: economy.coins - item.price,
+          unlockedAvatars: [...economy.unlockedAvatars, item.id],
+          activeAvatarId: item.id,
+        };
+      } else {
+        newEconomy = {
+          ...economy,
+          coins: economy.coins - item.price,
+          inventory: [...economy.inventory, item.id],
+          equippedItems: { ...economy.equippedItems, [type]: item.id },
+        };
+      }
+      updateChildProfileEconomy(activeId, newEconomy).catch((e) =>
+        console.error('No se pudo guardar la compra', e),
+      );
+      return {
+        profiles: s.profiles.map((x) => (x.id === activeId ? { ...x, economy: newEconomy } : x)),
+      };
+    });
+  };
+
+  const equipShopItem = (type, item) => {
+    const activeId = state.activeProfileId;
+    if (!activeId) return;
+    update((s) => {
+      const p = s.profiles.find((x) => x.id === activeId);
+      if (!p) return {};
+      const economy = { ...DEFAULT_ECONOMY, ...(p.economy || {}) };
+      const newEconomy =
+        type === 'avatar'
+          ? { ...economy, activeAvatarId: item.id }
+          : { ...economy, equippedItems: { ...economy.equippedItems, [type]: item.id } };
+      updateChildProfileEconomy(activeId, newEconomy).catch((e) =>
+        console.error('No se pudo guardar el cambio', e),
+      );
+      return {
+        profiles: s.profiles.map((x) => (x.id === activeId ? { ...x, economy: newEconomy } : x)),
+      };
+    });
+  };
+
+  const unequipShopItem = (type) => {
+    const activeId = state.activeProfileId;
+    if (!activeId) return;
+    update((s) => {
+      const p = s.profiles.find((x) => x.id === activeId);
+      if (!p) return {};
+      const economy = { ...DEFAULT_ECONOMY, ...(p.economy || {}) };
+      const newEconomy = { ...economy, equippedItems: { ...economy.equippedItems, [type]: null } };
+      updateChildProfileEconomy(activeId, newEconomy).catch((e) =>
+        console.error('No se pudo guardar el cambio', e),
+      );
+      return {
+        profiles: s.profiles.map((x) => (x.id === activeId ? { ...x, economy: newEconomy } : x)),
+      };
+    });
   };
 
   const playSound = () => {
@@ -247,6 +578,12 @@ export default function App() {
     updateChildProfileProgress(activeId, newProgress).catch((e) =>
       console.error('No se pudo guardar el progreso', e),
     );
+    // A "checkpoint" is crossing a full phase boundary (or finishing the
+    // whole prototype adventure) in this simple letters/syllables/words map.
+    const crossedCheckpoint = phaseRanges.some((p) => p.start + p.total === newProgress);
+    if (crossedCheckpoint) {
+      awardCoins(COIN_REWARDS.checkpoint, 'checkpoint', '¡Súper logro desbloqueado!');
+    }
   };
   const continueFromCompletion = () => update({ screen: 'home' });
 
@@ -288,6 +625,18 @@ export default function App() {
   const lettersDoneCount = doneSteps.filter((x) => x.type === 'letter').length;
   const syllablesDoneCount = doneSteps.filter((x) => x.type === 'syllable').length;
   const wordsDoneCount = doneSteps.filter((x) => x.type === 'word').length;
+
+  const practiceSeconds = profile.practiceSeconds || 0;
+  const practiceDaysCount = (profile.practiceDays || []).length;
+  const practiceHours = Math.floor(practiceSeconds / 3600);
+  const practiceMinutes = Math.floor((practiceSeconds % 3600) / 60);
+  const practiceTimeLabel =
+    practiceSeconds < 60
+      ? 'Menos de 1min'
+      : practiceHours > 0
+        ? `${practiceHours}h ${practiceMinutes}min`
+        : `${practiceMinutes}min`;
+  const practiceDaysLabel = `${practiceDaysCount} ${practiceDaysCount === 1 ? 'día' : 'días'}`;
 
   const tempAvatarEmoji = getAvatar(state.tempAvatarId).emoji;
 
@@ -359,14 +708,17 @@ export default function App() {
     };
   });
 
+  // Each achievement keeps its own emoji even when locked — locked ones are
+  // just rendered dimmed/grayscale (with a small lock badge) in Achievements.jsx,
+  // instead of being replaced by a generic 🔒.
   const achievements = [
-    { icon: lettersDoneCount >= 1 ? '🏆' : '🔒', title: 'Mi primera letra', unlocked: lettersDoneCount >= 1 },
-    { icon: syllablesDoneCount >= 1 ? '🏆' : '🔒', title: 'Mi primera sílaba', unlocked: syllablesDoneCount >= 1 },
-    { icon: wordsDoneCount >= 1 ? '🏆' : '🔒', title: 'Mi primera palabra', unlocked: wordsDoneCount >= 1 },
-    { icon: lettersDoneCount >= 5 ? '⭐' : '🔒', title: 'Todos los sonidos', unlocked: lettersDoneCount >= 5 },
-    { icon: syllablesDoneCount >= 4 ? '⭐' : '🔒', title: 'Todas las sílabas', unlocked: syllablesDoneCount >= 4 },
-    { icon: appComplete ? '🌟' : '🔒', title: '¡Aventura completa!', unlocked: appComplete },
-  ].map((a) => ({ ...a, opacity: a.unlocked ? 1 : 0.45 }));
+    { icon: '🔤', title: 'Mi primera letra', unlocked: lettersDoneCount >= 1 },
+    { icon: '🔗', title: 'Mi primera sílaba', unlocked: syllablesDoneCount >= 1 },
+    { icon: '📖', title: 'Mi primera palabra', unlocked: wordsDoneCount >= 1 },
+    { icon: '🎯', title: 'Todos los sonidos', unlocked: lettersDoneCount >= 5 },
+    { icon: '🧠', title: 'Todas las sílabas', unlocked: syllablesDoneCount >= 4 },
+    { icon: '🏆', title: '¡Aventura completa!', unlocked: appComplete },
+  ];
 
   const currentLetter = getLetter(state.currentItemId) || letters[0];
   const quizOptions = (state.quizOptions || []).map((o) => ({
@@ -412,6 +764,8 @@ export default function App() {
       borderColor: p.id === state.activeProfileId ? 'oklch(68% 0.14 235)' : 'oklch(93% 0.02 235)',
     }));
 
+  const economy = { ...DEFAULT_ECONOMY, ...(profile.economy || {}) };
+
   const screen = state.screen;
   const showBottomNav = NAV_SCREENS.includes(screen);
 
@@ -453,6 +807,8 @@ export default function App() {
       ScreenView = (
         <Home
           profileEmoji={getAvatar(profile.avatarId).emoji}
+          activeAvatarId={economy.activeAvatarId || profile.avatarId}
+          equippedItems={economy.equippedItems}
           profileName={profile.name}
           goProfile={goProfile}
           missionIcon={missionIcon}
@@ -464,6 +820,10 @@ export default function App() {
           wordsDoneCount={wordsDoneCount}
           goAchievements={goAchievements}
           achievementsPreview={achievements}
+          coins={economy.coins}
+          coinBumpAmount={state.coinBumpAmount}
+          coinBumpKey={state.coinBumpKey}
+          goTienda={goTienda}
         />
       );
       break;
@@ -488,6 +848,10 @@ export default function App() {
           goProfileSwitcher={goProfileSwitcher}
           startParentGate={startParentGate}
           logOut={logOut}
+          activeAvatarId={economy.activeAvatarId || profile.avatarId}
+          equippedItems={economy.equippedItems}
+          coins={economy.coins}
+          goTienda={goTienda}
         />
       );
       break;
@@ -521,21 +885,40 @@ export default function App() {
           wordsDoneCount={wordsDoneCount}
           learningNow={learningNow}
           masteredList={masteredList}
+          practiceTimeLabel={practiceTimeLabel}
+          practiceDaysLabel={practiceDaysLabel}
         />
       );
       break;
     case 'phase-detail':
       ScreenView = (
         <PhaseDetail
-          goAdventure={goAdventure}
+          goAdventure={backFromPhaseDetail}
+          activePhase={activePhase}
           currentPhaseIcon={phaseData.icon}
           currentPhaseTitle={phaseData.title}
           currentPhaseLevels={phaseData.levels}
+          phase1Days={phase1Days}
+          phase1DoneLetters={profile.phase1DoneLetters || 0}
+          openPhase1Letter={openPhase1Letter}
           lockedMessage={state.lockedMessage}
           lockedToastVisible={state.lockedToastVisible}
         />
       );
       break;
+    case 'phase1-letter-activity': {
+      const seqItem = phase1LetterSequence[state.phase1ActiveIndex] || phase1LetterSequence[0];
+      ScreenView = (
+        <Phase1LetterActivity
+          day={seqItem.day}
+          letter={seqItem}
+          onComplete={completePhase1Letter}
+          onClose={exitPhase1Letter}
+          onMiniActivity={onPhase1MiniActivity}
+        />
+      );
+      break;
+    }
     case 'letter-learn':
       ScreenView = (
         <LetterLearn
@@ -601,6 +984,22 @@ export default function App() {
         />
       );
       break;
+    case 'tienda':
+      ScreenView = (
+        <Tienda
+          goBack={closeTienda}
+          coins={economy.coins}
+          activeAvatarId={economy.activeAvatarId || profile.avatarId}
+          equippedItems={economy.equippedItems}
+          unlockedAvatars={economy.unlockedAvatars}
+          profileAvatarId={profile.avatarId}
+          inventory={economy.inventory}
+          onBuyItem={buyShopItem}
+          onEquipItem={equipShopItem}
+          onUnequipItem={unequipShopItem}
+        />
+      );
+      break;
     default:
       ScreenView = null;
   }
@@ -645,6 +1044,34 @@ export default function App() {
             zIndex: 999,
           }}
         />
+        <UpdatePrompt visible={state.updateAvailable} onUpdate={applyUpdate} />
+        <RewardModal
+          open={state.rewardOpen}
+          amount={state.rewardAmount}
+          kind={state.rewardKind}
+          subtitle={state.rewardSubtitle}
+          onContinue={closeReward}
+        />
+        {state.reviewGateVariant === 'checkpoint' ? (
+          <CheckpointView
+            open={state.reviewGateOpen}
+            letterMastery={getReviewState(profile).mastery}
+            learnedLetterIds={phase1LetterSequence.slice(0, state.reviewGatePendingIndex ?? 0).map((l) => l.id)}
+            currentDay={state.reviewGateDay}
+            onAnswer={handleReviewAnswer}
+            onComplete={handleReviewGateComplete}
+          />
+        ) : (
+          <CalentamientoModal
+            open={state.reviewGateOpen}
+            letterMastery={getReviewState(profile).mastery}
+            learnedLetterIds={phase1LetterSequence.slice(0, state.reviewGatePendingIndex ?? 0).map((l) => l.id)}
+            currentDay={state.reviewGateDay}
+            onAnswer={handleReviewAnswer}
+            onComplete={handleReviewGateComplete}
+            coinsReward={COIN_REWARDS.warmup}
+          />
+        )}
       </div>
     </div>
   );

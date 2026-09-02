@@ -13,7 +13,21 @@ export default function Onboarding2({ tempName, setTempName, confirmName }) {
         textAlign: 'center',
       }}
     >
-      <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 28, color: 'var(--color-text-strong)' }}>
+      <div
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: '50%',
+          background: 'var(--color-primary-tint)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 30,
+        }}
+      >
+        ✏️
+      </div>
+      <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 28, color: 'var(--color-text-strong)', marginTop: 18 }}>
         ¿Cómo te llamas?
       </div>
       <input
@@ -33,6 +47,7 @@ export default function Onboarding2({ tempName, setTempName, confirmName }) {
           textAlign: 'center',
           color: 'var(--color-text-strong)',
           background: '#fff',
+          boxShadow: 'var(--shadow-card)',
         }}
       />
       <PrimaryButton onClick={confirmName} style={{ marginTop: 32, maxWidth: 280 }}>

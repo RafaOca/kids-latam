@@ -1,9 +1,11 @@
 import Card from '../components/Card.jsx';
+import InstallButton from '../components/InstallButton.jsx';
 
 export default function ProfileSwitcher({ profileCards, switchProfile, addProfile, canAddProfile }) {
   return (
     <div style={{ padding: '58px 20px 24px' }}>
-      <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 24, color: 'var(--color-text-strong)', textAlign: 'center' }}>
+      <div style={{ fontSize: 30, textAlign: 'center' }}>👋</div>
+      <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 24, color: 'var(--color-text-strong)', textAlign: 'center', marginTop: 4 }}>
         ¿Quién va a leer?
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 24 }}>
@@ -14,13 +16,39 @@ export default function ProfileSwitcher({ profileCards, switchProfile, addProfil
             radius="var(--radius-xl)"
             style={{ textAlign: 'center', border: `3px solid ${pc.borderColor}` }}
           >
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--color-primary-tint)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto' }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: 'linear-gradient(150deg, var(--color-primary-tint) 0%, oklch(88% 0.06 235) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 28,
+                margin: '0 auto',
+                boxShadow: '0 4px 10px oklch(60% 0.1 235 / 0.18)',
+              }}
+            >
               {pc.emoji}
             </div>
             <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 15, color: 'var(--color-text-strong)', marginTop: 10 }}>
               {pc.name}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-subtle)', marginTop: 2 }}>Nivel {pc.level}</div>
+            <div
+              style={{
+                display: 'inline-block',
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--color-primary-ink)',
+                background: 'var(--color-primary-tint)',
+                padding: '2px 10px',
+                borderRadius: 'var(--radius-full)',
+                marginTop: 6,
+              }}
+            >
+              ⭐ Nivel {pc.level}
+            </div>
           </Card>
         ))}
         {canAddProfile && (
@@ -58,6 +86,7 @@ export default function ProfileSwitcher({ profileCards, switchProfile, addProfil
           Máximo de 2 perfiles por cuenta.
         </div>
       )}
+      <InstallButton style={{ marginTop: 24 }} />
     </div>
   );
 }

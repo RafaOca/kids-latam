@@ -10,6 +10,9 @@ export default function BottomNav({ active, onNavigate }) {
     <div
       style={{
         flexShrink: 0,
+        position: 'sticky',
+        bottom: 0,
+        zIndex: 10,
         display: 'flex',
         background: '#fff',
         boxShadow: '0 -2px 12px oklch(50% 0.05 250 / 0.08)',

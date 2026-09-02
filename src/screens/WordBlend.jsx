@@ -17,17 +17,28 @@ export default function WordBlend({
       <div style={{ alignSelf: 'flex-start' }}>
         <IconButton onClick={goToPhaseDetail}>←</IconButton>
       </div>
-      <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 20, color: 'var(--color-text-strong)', marginTop: 14 }}>
-        Primeras palabras
+      <div
+        style={{
+          fontFamily: "'Fredoka', sans-serif",
+          fontWeight: 700,
+          fontSize: 13,
+          color: 'var(--color-primary-ink)',
+          background: 'var(--color-primary-tint)',
+          padding: '6px 16px',
+          borderRadius: 'var(--radius-full)',
+          marginTop: 14,
+        }}
+      >
+        📖 Primeras palabras
       </div>
 
       {blendNotMerged && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: blendGap, marginTop: 44, transition: 'gap 0.6s ease' }}>
-            <div style={{ width: 100, height: 110, borderRadius: 24, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 36, color: 'var(--color-text-strong)', boxShadow: 'var(--shadow-card)' }}>
+            <div style={{ width: 100, height: 110, borderRadius: 24, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 36, color: 'var(--color-text-strong)', boxShadow: 'var(--shadow-card)', border: '3px solid var(--color-primary-tint)' }}>
               {blendSyl1.text}
             </div>
-            <div style={{ width: 100, height: 110, borderRadius: 24, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 36, color: 'var(--color-text-strong)', boxShadow: 'var(--shadow-card)' }}>
+            <div style={{ width: 100, height: 110, borderRadius: 24, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 36, color: 'var(--color-text-strong)', boxShadow: 'var(--shadow-card)', border: '3px solid var(--color-primary-tint)' }}>
               {blendSyl2.text}
             </div>
           </div>
@@ -42,11 +53,11 @@ export default function WordBlend({
           <div style={{ marginTop: 24, fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 56, color: 'var(--color-text-strong)', animation: 'popIn 0.4s ease' }}>
             {blendWordResult.text}
           </div>
-          <div style={{ marginTop: 18, width: 180, height: 120, borderRadius: 18, overflow: 'hidden' }}>
+          <div style={{ marginTop: 18, width: 180, height: 120, borderRadius: 18, overflow: 'hidden', boxShadow: 'var(--shadow-card)' }}>
             <ImageSlot placeholder={`ilustración:\n${blendWordResult.text}`} />
           </div>
           <div style={{ marginTop: 16, fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 19, color: 'oklch(45% 0.13 155)' }}>
-            ¡Leíste {blendWordResult.text}!
+            🎉 ¡Leíste {blendWordResult.text}!
           </div>
           <PrimaryButton onClick={advanceAndComplete} style={{ marginTop: 24, padding: 18, borderRadius: 22, fontSize: 18 }}>
             Continuar

@@ -6,7 +6,21 @@ export default function LetterActivity({ goToLearn, currentLetter, playSound, qu
       <div style={{ alignSelf: 'flex-start' }}>
         <IconButton onClick={goToLearn}>←</IconButton>
       </div>
-      <div onClick={playSound} style={{ marginTop: 20, fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, color: 'oklch(45% 0.1 235)', cursor: 'pointer' }}>
+      <div
+        onClick={playSound}
+        className="pressable"
+        style={{
+          marginTop: 20,
+          padding: '10px 22px',
+          borderRadius: 'var(--radius-full)',
+          background: 'var(--color-primary-tint)',
+          fontFamily: "'Fredoka', sans-serif",
+          fontWeight: 600,
+          fontSize: 20,
+          color: 'var(--color-primary-ink)',
+          cursor: 'pointer',
+        }}
+      >
         🔊 {currentLetter.sound}
       </div>
       <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 22, color: 'var(--color-text-strong)', marginTop: 14 }}>
@@ -50,7 +64,8 @@ export default function LetterActivity({ goToLearn, currentLetter, playSound, qu
           </div>
           <button
             onClick={advanceAndComplete}
-            style={{ marginTop: 18, padding: '16px 40px', border: 'none', borderRadius: 20, background: 'var(--color-primary)', color: '#fff', fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 17, cursor: 'pointer' }}
+            className="pressable"
+            style={{ marginTop: 18, padding: '16px 40px', border: 'none', borderRadius: 20, background: 'linear-gradient(135deg, var(--color-primary) 0%, oklch(60% 0.16 235) 100%)', color: '#fff', fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 17, cursor: 'pointer', boxShadow: 'var(--shadow-elevated)' }}
           >
             Continuar
           </button>
@@ -58,7 +73,8 @@ export default function LetterActivity({ goToLearn, currentLetter, playSound, qu
       )}
       {showWrongFeedback && (
         <div style={{ marginTop: 32, textAlign: 'center', animation: 'shakeX 0.4s' }}>
-          <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 19, color: 'oklch(55% 0.14 40)' }}>
+          <div style={{ fontSize: 30 }}>🤔</div>
+          <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 19, color: 'oklch(55% 0.14 40)', marginTop: 4 }}>
             ¡Casi! Inténtalo otra vez.
           </div>
         </div>
