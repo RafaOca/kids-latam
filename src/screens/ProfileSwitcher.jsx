@@ -1,5 +1,4 @@
 import Card from '../components/Card.jsx';
-import InstallButton from '../components/InstallButton.jsx';
 
 export default function ProfileSwitcher({ profileCards, switchProfile, addProfile, canAddProfile }) {
   return (
@@ -86,7 +85,6 @@ export default function ProfileSwitcher({ profileCards, switchProfile, addProfil
           Máximo de 2 perfiles por cuenta.
         </div>
       )}
-      <InstallButton style={{ marginTop: 24 }} />
     </div>
   );
 }

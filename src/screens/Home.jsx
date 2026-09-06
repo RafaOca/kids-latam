@@ -1,6 +1,7 @@
 import Card from '../components/Card.jsx';
 import CoinCounter from '../components/CoinCounter.jsx';
 import AvatarPreview from '../components/AvatarPreview.jsx';
+import InstallButton from '../components/InstallButton.jsx';
 
 export default function Home({
   profileEmoji,
@@ -70,6 +71,17 @@ export default function Home({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <CoinCounter coins={coins} bumpAmount={coinBumpAmount} bumpKey={coinBumpKey} onClick={goTienda} />
+            <InstallButton
+              variant="icon"
+              style={{
+                width: 44,
+                height: 44,
+                background: 'oklch(100% 0 0 / 0.2)',
+                border: '2px solid oklch(100% 0 0 / 0.35)',
+                color: '#fff',
+                fontSize: 18,
+              }}
+            />
             <button
               onClick={goProfile}
               className="pressable"

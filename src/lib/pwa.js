@@ -32,6 +32,53 @@ export function getPlatform() {
   return 'other';
 }
 
+// ---- native "Add to Home Screen" prompt capture (Android/Chrome) ----
+// Chrome fires `beforeinstallprompt` once early on, then lets the page
+// trigger the real OS install dialog later via `.prompt()` — but only if we
+// captured the event and called `preventDefault()` on it in time. iOS Safari
+// never fires this event (there is no native prompt there), so those users
+// always fall back to the instructional modal.
+let deferredPrompt = null;
+let promptListeners = [];
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    promptListeners.forEach((cb) => cb(true));
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    promptListeners.forEach((cb) => cb(false));
+  });
+}
+
+export function hasNativeInstallPrompt() {
+  return !!deferredPrompt;
+}
+
+// Subscribe to changes in native-prompt availability; returns an unsubscribe fn.
+export function onNativeInstallPromptChange(cb) {
+  promptListeners.push(cb);
+  return () => { promptListeners = promptListeners.filter((l) => l !== cb); };
+}
+
+// Fires the real OS "Install app?" dialog. Resolves to the browser's choice
+// ('accepted' | 'dismissed'), or null if no native prompt was ever captured
+// (caller should fall back to the instructional modal in that case).
+export async function triggerNativeInstallPrompt() {
+  if (!deferredPrompt) return null;
+  const promptEvent = deferredPrompt;
+  deferredPrompt = null;
+  promptEvent.prompt();
+  try {
+    const choice = await promptEvent.userChoice;
+    return choice.outcome;
+  } catch {
+    return null;
+  }
+}
+
 // ---- 1-week "remember me" gate for installed-PWA sessions ----
 // Supabase's own session/refresh-token already persists indefinitely
 // (persistSession + autoRefreshToken), so this doesn't need to touch auth

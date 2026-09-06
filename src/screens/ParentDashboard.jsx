@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { fetchAppSettings, updateAppSettings } from '../lib/supabaseClient.js';
+import CoinCounter from '../components/CoinCounter.jsx';
+import InstallButton from '../components/InstallButton.jsx';
 
 function StatBox({ icon, label, value }) {
   return (
@@ -11,121 +11,35 @@ function StatBox({ icon, label, value }) {
   );
 }
 
-// Admin control for the GIF/image shown inside each platform's install
-// instructions modal (see ../components/InstallModal.jsx) — lets the GIF be
-// swapped without a code deploy. Lives here because ParentDashboard is
-// already the app's only gated "admin-ish" surface (see ../screens/ParentGate.jsx).
-function InstallSettingsCard() {
-  const [values, setValues] = useState({ androidInstallGifUrl: '', iosInstallGifUrl: '' });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    fetchAppSettings()
-      .then((s) => { setValues(s); setLoaded(true); })
-      .catch((e) => { console.error('No se pudo cargar la configuración', e); setLoaded(true); });
-  }, []);
-
-  const save = async () => {
-    setSaving(true);
-    setSaved(false);
-    try {
-      await updateAppSettings(values);
-      setSaved(true);
-    } catch (e) {
-      console.error('No se pudo guardar la configuración', e);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 'var(--radius-md)',
-    border: '2px solid var(--color-border)',
-    fontSize: 13,
-    marginTop: 6,
-  };
-
-  if (!loaded) return null;
-
-  return (
-    <div style={{ marginTop: 26, background: 'var(--color-surface-tint)', borderRadius: 'var(--radius-lg)', padding: 16 }}>
-      <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 15, color: 'oklch(22% 0.02 250)' }}>
-        ⚙️ Instrucciones de instalación (PWA)
-      </div>
-      <div style={{ fontSize: 12, color: 'oklch(45% 0.02 250)', marginTop: 4 }}>
-        URL del GIF/imagen mostrado en cada popup de instalación.
-      </div>
-
-      <label style={{ display: 'block', marginTop: 14, fontSize: 12, fontWeight: 700, color: 'oklch(40% 0.02 250)' }}>
-        Android
-        <input
-          type="url"
-          value={values.androidInstallGifUrl}
-          onChange={(e) => setValues((v) => ({ ...v, androidInstallGifUrl: e.target.value }))}
-          placeholder="https://…/android.gif"
-          style={inputStyle}
-        />
-      </label>
-
-      <label style={{ display: 'block', marginTop: 12, fontSize: 12, fontWeight: 700, color: 'oklch(40% 0.02 250)' }}>
-        iOS
-        <input
-          type="url"
-          value={values.iosInstallGifUrl}
-          onChange={(e) => setValues((v) => ({ ...v, iosInstallGifUrl: e.target.value }))}
-          placeholder="https://…/ios.gif"
-          style={inputStyle}
-        />
-      </label>
-
-      <button
-        onClick={save}
-        disabled={saving}
-        className="pressable"
-        style={{
-          marginTop: 14,
-          border: 'none',
-          borderRadius: 'var(--radius-full)',
-          background: 'var(--color-primary)',
-          color: '#fff',
-          fontFamily: "'Fredoka', sans-serif",
-          fontWeight: 700,
-          fontSize: 13,
-          padding: '10px 18px',
-          cursor: 'pointer',
-        }}
-      >
-        {saving ? 'Guardando…' : saved ? '✓ Guardado' : 'Guardar'}
-      </button>
-    </div>
-  );
-}
-
 export default function ParentDashboard({
   goProfile,
   profileName,
   progressPercent,
   lettersDoneCount,
+  lettersTotal = 31,
   syllablesDoneCount,
   wordsDoneCount,
   learningNow,
   masteredList,
   practiceTimeLabel,
   practiceDaysLabel,
+  coins,
 }) {
   return (
     <div style={{ padding: '58px 20px 30px', background: '#fff', minHeight: '100%' }}>
-      <button
-        onClick={goProfile}
-        className="pressable"
-        style={{ fontSize: 14, color: 'var(--color-primary-dark)', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', padding: '8px 0', minHeight: 'var(--touch-target-min)' }}
-      >
-        ‹ Volver a la app
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button
+          onClick={goProfile}
+          className="pressable"
+          style={{ fontSize: 14, color: 'var(--color-primary-dark)', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', padding: '8px 0', minHeight: 'var(--touch-target-min)' }}
+        >
+          ‹ Volver a la app
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <CoinCounter coins={coins} size="sm" />
+          <InstallButton variant="icon" />
+        </div>
+      </div>
       <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 22, color: 'oklch(22% 0.02 250)', marginTop: 4 }}>
         📊 Progreso de {profileName}
       </div>
@@ -147,7 +61,7 @@ export default function ParentDashboard({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 14 }}>
-        <StatBox icon="🔤" label="Letras" value={`${lettersDoneCount} / 5`} />
+        <StatBox icon="🔤" label="Letras" value={`${lettersDoneCount} / ${lettersTotal}`} />
         <StatBox icon="🧩" label="Sílabas" value={`${syllablesDoneCount} / 4`} />
         <StatBox icon="📖" label="Palabras" value={`${wordsDoneCount} / 2`} />
       </div>
@@ -180,8 +94,6 @@ export default function ParentDashboard({
           </div>
         ))}
       </div>
-
-      <InstallSettingsCard />
     </div>
   );
 }

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { PrimaryButton } from '../components/Button.jsx';
 import { loginWithEmail } from '../lib/supabaseClient.js';
 import Mascot from '../components/Mascot.jsx';
-import InstallButton from '../components/InstallButton.jsx';
 
 export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -83,7 +82,6 @@ export default function Login({ onLoginSuccess }) {
         <PrimaryButton type="submit" disabled={loading} style={{ marginTop: 20, width: '100%' }}>
           {loading ? 'Entrando…' : 'Iniciar sesión'}
         </PrimaryButton>
-        <InstallButton style={{ marginTop: 14 }} />
       </form>
       <div style={{ marginTop: 40, fontSize: 12, color: 'oklch(55% 0.03 250)' }}>
         ¿Necesitas ayuda? Contáctanos:

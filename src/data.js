@@ -20,9 +20,11 @@ export const words = [
   { id: 'pesa', text: 'PESA', partIds: ['pe', 'sa'] },
 ];
 
+// Legacy prototype letters (M,A,P,S,E) were dropped from this sequence —
+// real letter-sound learning now lives entirely in `phase1LetterSequence`
+// below (31 real letters/sounds). `adventureSteps` now only covers the
+// syllable/word phases (2 and 3), which stay gated behind Phase 1 completion.
 export const adventureSteps = [
-  { type: 'letter', id: 'm' }, { type: 'letter', id: 'a' }, { type: 'letter', id: 'p' },
-  { type: 'letter', id: 's' }, { type: 'letter', id: 'e' },
   { type: 'syllable', id: 'ma' }, { type: 'syllable', id: 'pa' },
   { type: 'syllable', id: 'sa' }, { type: 'syllable', id: 'pe' },
   { type: 'word', id: 'mapa' }, { type: 'word', id: 'pesa' },
