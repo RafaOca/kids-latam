@@ -2,6 +2,7 @@ import Card from '../components/Card.jsx';
 import CoinCounter from '../components/CoinCounter.jsx';
 import AvatarPreview from '../components/AvatarPreview.jsx';
 import InstallButton from '../components/InstallButton.jsx';
+import Countdown from '../components/Countdown.jsx';
 
 export default function Home({
   profileEmoji,
@@ -12,6 +13,8 @@ export default function Home({
   missionIcon,
   missionLabel,
   goToRecommended,
+  missionBlockedByDailyLimit,
+  nextUnlockAt,
   progressPercent,
   lettersDoneCount,
   syllablesDoneCount,
@@ -144,27 +147,51 @@ export default function Home({
               {missionLabel}
             </div>
           </div>
-          <button
-            onClick={goToRecommended}
-            className="pressable"
-            style={{
-              marginTop: 18,
-              width: '100%',
-              padding: 16,
-              border: 'none',
-              borderRadius: 'var(--radius-lg)',
-              background: 'linear-gradient(135deg, var(--color-primary) 0%, oklch(60% 0.16 235) 100%)',
-              color: '#fff',
-              fontFamily: "'Fredoka', sans-serif",
-              fontWeight: 600,
-              fontSize: 17,
-              cursor: 'pointer',
-              minHeight: 'var(--touch-target-min)',
-              boxShadow: 'var(--shadow-elevated)',
-            }}
-          >
-            Continuar →
-          </button>
+          {missionBlockedByDailyLimit ? (
+            <div
+              style={{
+                marginTop: 18,
+                width: '100%',
+                padding: 16,
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--color-warning-tint)',
+                color: 'var(--color-warning-ink)',
+                fontFamily: "'Fredoka', sans-serif",
+                fontWeight: 700,
+                fontSize: 15,
+                textAlign: 'center',
+                minHeight: 'var(--touch-target-min)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }}
+            >
+              🌙 ¡Vas súper rápido! Vuelve en <Countdown targetMs={nextUnlockAt} />
+            </div>
+          ) : (
+            <button
+              onClick={goToRecommended}
+              className="pressable"
+              style={{
+                marginTop: 18,
+                width: '100%',
+                padding: 16,
+                border: 'none',
+                borderRadius: 'var(--radius-lg)',
+                background: 'linear-gradient(135deg, var(--color-primary) 0%, oklch(60% 0.16 235) 100%)',
+                color: '#fff',
+                fontFamily: "'Fredoka', sans-serif",
+                fontWeight: 600,
+                fontSize: 17,
+                cursor: 'pointer',
+                minHeight: 'var(--touch-target-min)',
+                boxShadow: 'var(--shadow-elevated)',
+              }}
+            >
+              Continuar →
+            </button>
+          )}
         </Card>
 
         <Card style={{ marginTop: 18 }}>

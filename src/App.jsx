@@ -17,6 +17,11 @@ import {
   adventureSteps,
   avatars,
   phase1Days,
+  phase2Levels,
+  PHASE2_ACTIVE_SYLLABLES,
+  PHASE2_ALL_IDS,
+  PHASE2_TOTAL,
+  getPhase2Syllable,
   phase1LetterSequence,
   PHASE1_CHECKPOINT_DAYS,
   getLetter,
@@ -34,6 +39,7 @@ import { initPwaUpdates } from './lib/pwaRegister.js';
 
 import BottomNav from './components/BottomNav.jsx';
 import RewardModal from './components/RewardModal.jsx';
+import PaceModal from './components/PaceModal.jsx';
 import CalentamientoModal, { CheckpointView } from './components/CalentamientoModal.jsx';
 import UpdatePrompt from './components/UpdatePrompt.jsx';
 
@@ -52,6 +58,8 @@ import Help from './screens/Help.jsx';
 import ParentGate from './screens/ParentGate.jsx';
 import ParentDashboard from './screens/ParentDashboard.jsx';
 import PhaseDetail from './screens/PhaseDetail.jsx';
+import SyllableActivity from './screens/SyllableActivity.jsx';
+import SyllableBalloonActivity from './screens/SyllableBalloonActivity.jsx';
 import Phase1LetterActivity from './screens/Phase1LetterActivity.jsx';
 import LetterLearn from './screens/LetterLearn.jsx';
 import LetterActivity from './screens/LetterActivity.jsx';
@@ -85,6 +93,10 @@ const initialState = {
   mathError: false,
   lockedMessage: '',
   lockedToastVisible: false,
+  lockedReason: null,
+  phase2Level: null,
+  phase2ActiveId: null,
+  paceModalOpen: false,
   transitionOpacity: 0,
   phase1ActiveIndex: null,
   screenBeforeTienda: 'home',
@@ -101,7 +113,10 @@ const initialState = {
   updateAvailable: false,
 };
 
-const DEFAULT_REVIEW_STATE = { mastery: {}, warmupCompletedDays: [], checkpointsCompleted: [], dayUnlockDates: [] };
+const DEFAULT_REVIEW_STATE = { mastery: {}, warmupCompletedDays: [], checkpointsCompleted: [], dayUnlockDates: [], phase2Done: [], phase2BlockUnlocks: {} };
+// Phase 2 pacing: at most this many NEW blocks may be started per real day.
+const MAX_BLOCKS_PER_DAY = 2;
+const phase2BlockKey = (id) => id.split('-').slice(1, 3).join('-');
 // Max curriculum days a child may freshly unlock in a single real-world day —
 // keeps pacing sane (spaced repetition needs sleep between days) without
 // feeling like a hard wall: the 3rd attempt is blocked with a warm toast
@@ -297,18 +312,72 @@ export default function App() {
   // Back navigation into/out of a phase also gets the fade transition (only
   // bottom-tab switches stay instant).
   const goToPhaseDetail = () => navigateWithTransition('phase-detail');
-  const backFromPhaseDetail = () => navigateWithTransition('adventure');
+  const backFromPhaseDetail = () => {
+    // Inside a Phase 2 level, back returns to the 3-level picker first.
+    if (state.activePhase === 2 && state.phase2Level) { update({ phase2Level: null, lockedToastVisible: false }); return; }
+    navigateWithTransition('adventure');
+  };
+  const openPhase2Level = (level, locked) => {
+    if (locked) { showLockedMessage(); return; }
+    update({ phase2Level: level, lockedToastVisible: false });
+  };
+  const openPhase2Syllable = (id, locked) => {
+    if (locked) { showLockedMessage(); return; }
+    if (!PHASE2_ACTIVE_SYLLABLES.has(id)) {
+      showLockedMessage('🚧 ¡Pronto! Esta sílaba estará lista muy pronto.');
+      return;
+    }
+    // Pacing gate: starting a brand-new block counts against today's quota
+    // (2 blocks/day). Re-opening anything already started/done never does.
+    const profile = getActiveProfile();
+    const rs = getReviewState(profile);
+    const key = phase2BlockKey(id);
+    const unlocks = rs.phase2BlockUnlocks || {};
+    const isFreshBlockStart = id.endsWith('-1') && !(rs.phase2Done || []).includes(id) && !unlocks[key];
+    if (isFreshBlockStart) {
+      const today = todayISO();
+      const startedToday = Object.values(unlocks).filter((d) => d === today).length;
+      if (startedToday >= MAX_BLOCKS_PER_DAY) {
+        update({ paceModalOpen: true, lockedToastVisible: false });
+        return;
+      }
+      const nextRs = { ...rs, phase2BlockUnlocks: { ...unlocks, [key]: today } };
+      update((s) => ({
+        profiles: s.profiles.map((p) => (p.id === profile.id ? { ...p, reviewState: nextRs } : p)),
+      }));
+      updateChildProfileReviewState(profile.id, nextRs).catch((e) =>
+        console.error('No se pudo guardar el ritmo diario', e),
+      );
+    }
+    navigateWithTransition('phase2-syllable-activity', { phase2ActiveId: id, lockedToastVisible: false });
+  };
+  const completePhase2Syllable = () => {
+    const activeId = state.activeProfileId;
+    const sylId = state.phase2ActiveId;
+    const rs = getReviewState(getActiveProfile());
+    if (!(rs.phase2Done || []).includes(sylId)) {
+      const nextRs = { ...rs, phase2Done: [...(rs.phase2Done || []), sylId] };
+      update((s) => ({
+        profiles: s.profiles.map((p) => (p.id === activeId ? { ...p, reviewState: nextRs } : p)),
+      }));
+      updateChildProfileReviewState(activeId, nextRs).catch((e) =>
+        console.error('No se pudo guardar el avance de la fase 2', e),
+      );
+      awardCoins(COIN_REWARDS.letterComplete, 'letter', '¡Sílaba completa!');
+    }
+    navigateWithTransition('phase-detail');
+  };
   const goToLearn = () => update({ screen: 'letter-learn', quizResult: null, quizSelected: null });
 
-  const showLockedMessage = (message) =>
-    update({ lockedMessage: message || '🔒 Completa el nivel anterior primero.', lockedToastVisible: true });
+  const showLockedMessage = (message, reason) =>
+    update({ lockedMessage: message || '🔒 Completa el nivel anterior primero.', lockedToastVisible: true, lockedReason: reason || null });
 
   const openPhaseDetailWithTransition = (phase, locked) => {
     if (locked) { showLockedMessage(); return; }
     update({ transitionOpacity: 1, lockedToastVisible: false });
     clearTimeout(transTimer1.current);
     clearTimeout(transTimer2.current);
-    transTimer1.current = setTimeout(() => update({ activePhase: phase, screen: 'phase-detail' }), 350);
+    transTimer1.current = setTimeout(() => update({ activePhase: phase, phase2Level: null, screen: 'phase-detail' }), 350);
     transTimer2.current = setTimeout(() => update({ transitionOpacity: 0 }), 700);
   };
 
@@ -364,7 +433,7 @@ export default function App() {
       const today = todayISO();
       const unlocksToday = unlockDates.filter((d) => d === today).length;
       if (unlocksToday >= MAX_NEW_DAYS_PER_DAY) {
-        showLockedMessage('🌙 ¡Vas súper rápido! El próximo día se abre mañana. ¡Nos vemos pronto! 💛');
+        showLockedMessage('🌙 ¡Vas súper rápido! El próximo día se abre en:', 'daily-limit');
         return;
       }
       const nextRs = { ...rs, dayUnlockDates: [...unlockDates, today] };
@@ -624,6 +693,13 @@ export default function App() {
       openPhase1Letter(phase1Done);
       return;
     }
+    const phase2DoneIds = getReviewState(active).phase2Done || [];
+    const nextPhase2Id = PHASE2_ALL_IDS.find((id) => !phase2DoneIds.includes(id));
+    if (nextPhase2Id) {
+      update({ activePhase: 2, phase2Level: Number(nextPhase2Id.split('-')[1]) });
+      openPhase2Syllable(nextPhase2Id, false);
+      return;
+    }
     const progressIndex = active.progressIndex;
     const step = adventureSteps[progressIndex];
     if (!step) { update({ screen: 'home' }); return; }
@@ -653,7 +729,7 @@ export default function App() {
 
   // ---- derived values (mirrors the original prototype's renderVals) ----
   const profile = getActiveProfile();
-  const progressIndex = profile.progressIndex || 0;
+  const progressIndex = Math.min(profile.progressIndex || 0, adventureSteps.length);
   const PHASE1_TOTAL = phase1LetterSequence.length;
   const phase1DoneLetters = profile.phase1DoneLetters || 0;
   // Overall progress now blends both tracking systems: the 31 real Phase 1
@@ -661,14 +737,49 @@ export default function App() {
   // fully finished (see `adventureSteps` in data.js, which no longer
   // contains any letter entries).
   const total = adventureSteps.length;
-  const overallDone = phase1DoneLetters + progressIndex;
-  const overallTotal = PHASE1_TOTAL + total;
+  const phase2DoneIds = (getReviewState(profile).phase2Done || []).filter((id) => PHASE2_ALL_IDS.includes(id));
+  const phase2DoneCount = phase2DoneIds.length;
+  const phase2Complete = phase2DoneCount >= PHASE2_TOTAL;
+  const overallDone = phase1DoneLetters + phase2DoneCount + progressIndex;
+  const overallTotal = PHASE1_TOTAL + PHASE2_TOTAL + total;
   const appComplete = overallDone >= overallTotal;
   const percent = Math.round((overallDone / overallTotal) * 100);
   const doneSteps = adventureSteps.slice(0, progressIndex);
   const lettersDoneCount = phase1DoneLetters;
-  const syllablesDoneCount = doneSteps.filter((x) => x.type === 'syllable').length;
+
+  // Daily pacing: how many *new* curriculum days were already started today,
+  // and whether that has hit the cap — used to show a live countdown badge
+  // on the next locked day instead of just a plain lock.
+  const newDaysUnlockedToday = (getReviewState(profile).dayUnlockDates || []).filter((d) => d === todayISO()).length;
+  const dailyLimitReached = newDaysUnlockedToday >= MAX_NEW_DAYS_PER_DAY;
+  const nextUnlockAt = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  })();
+  // Whether today's mission card ("Continuar →" on Home) specifically points
+  // at a fresh new curriculum day that's currently blocked by the daily cap
+  // — mid-day letters/review/syllables are never affected by this.
+  const missionIsFreshDayStart =
+    phase1DoneLetters > 0 &&
+    phase1DoneLetters < PHASE1_TOTAL &&
+    phase1LetterSequence[phase1DoneLetters - 1].day !== phase1LetterSequence[phase1DoneLetters].day;
+  // Phase 2: today's block quota, and whether the next syllable would start
+  // a fresh block that the quota is currently blocking.
+  const phase2Unlocks = getReviewState(profile).phase2BlockUnlocks || {};
+  const blocksStartedToday = Object.values(phase2Unlocks).filter((d) => d === todayISO()).length;
+  const nextPhase2Id = phase1DoneLetters >= PHASE1_TOTAL ? PHASE2_ALL_IDS.find((id) => !phase2DoneIds.includes(id)) : undefined;
+  const phase2PaceBlockKey =
+    nextPhase2Id && nextPhase2Id.endsWith('-1') && !phase2Unlocks[phase2BlockKey(nextPhase2Id)] && blocksStartedToday >= MAX_BLOCKS_PER_DAY
+      ? phase2BlockKey(nextPhase2Id)
+      : null;
+  const missionBlockedByDailyLimit = (dailyLimitReached && missionIsFreshDayStart) || !!phase2PaceBlockKey;
+  const legacySyllablesDone = doneSteps.filter((x) => x.type === 'syllable').length;
+  const syllablesDoneCount = phase2DoneCount + legacySyllablesDone;
+  const syllablesTotal = PHASE2_TOTAL + adventureSteps.filter((x) => x.type === 'syllable').length;
   const wordsDoneCount = doneSteps.filter((x) => x.type === 'word').length;
+  const wordsTotal = adventureSteps.filter((x) => x.type === 'word').length;
 
   const practiceSeconds = profile.practiceSeconds || 0;
   const practiceDaysCount = (profile.practiceDays || []).length;
@@ -690,6 +801,9 @@ export default function App() {
     const nextLetter = phase1LetterSequence[phase1DoneLetters];
     missionIcon = '🔤';
     missionLabel = `Aprender el sonido de ${nextLetter.char}`;
+  } else if (nextPhase2Id) {
+    missionIcon = '🧩';
+    missionLabel = `Aprender la sílaba ${getPhase2Syllable(nextPhase2Id).char}`;
   } else if (!appComplete) {
     const step = adventureSteps[progressIndex];
     if (step.type === 'syllable') {
@@ -707,7 +821,7 @@ export default function App() {
   const activePhase = state.activePhase || 1;
   const phaseData = {
     1: { title: 'Sonidos de las letras', icon: phaseBadges[1], levels: letters.map((l) => buildLevelItem('letter', l, adventureIndexFor('letter', l.id), progressIndex)) },
-    2: { title: 'Sílabas simples', icon: phaseBadges[2], levels: syllables.filter((sy) => sy.group === 'simple').map((sy) => buildLevelItem('syllable', sy, adventureIndexFor('syllable', sy.id), progressIndex)) },
+    2: { title: 'Sílabas simples', icon: phaseBadges[2], levels: [] },
     3: { title: 'Sílabas complejas', icon: phaseBadges[3], levels: syllables.filter((sy) => sy.group === 'complex').map((sy) => buildLevelItem('syllable', sy, adventureIndexFor('syllable', sy.id), progressIndex)) },
     4: { title: 'Primeras palabras', icon: phaseBadges[4], levels: words.map((w) => buildLevelItem('word', w, adventureIndexFor('word', w.id), progressIndex)) },
   }[activePhase];
@@ -719,9 +833,9 @@ export default function App() {
   // finished — that's the fix for the "syllables never unlock" regression.
   const phaseRanges = [
     { num: 1, title: 'Sonidos de las letras', total: PHASE1_TOTAL, start: 0 },
-    { num: 2, title: 'Sílabas simples', total: 2, start: 0 },
-    { num: 3, title: 'Sílabas complejas', total: 2, start: 2 },
-    { num: 4, title: 'Primeras palabras', total: 2, start: 4 },
+    { num: 2, title: 'Sílabas simples', total: PHASE2_TOTAL, start: 0 },
+    { num: 3, title: 'Sílabas complejas', total: 2, start: 0 },
+    { num: 4, title: 'Primeras palabras', total: 2, start: 2 },
   ];
   // level 1 sits at the bottom of the map, level 4 at the top
   const nodePositions = [{ left: 190, top: 590 }, { left: 40, top: 400 }, { left: 190, top: 210 }, { left: 40, top: 20 }];
@@ -734,14 +848,23 @@ export default function App() {
   const phase1Unlocked = phase1DoneLetters >= PHASE1_TOTAL;
   const phasesSummary = phaseRanges.map((p, i) => {
     const isPhase1 = p.num === 1;
+    const isPhase2 = p.num === 2;
     const doneCount = isPhase1
       ? Math.min(p.total, phase1DoneLetters)
-      : Math.max(0, Math.min(p.total, progressIndex - p.start));
+      : isPhase2
+        ? phase2DoneCount
+        : phase2Complete
+          ? Math.max(0, Math.min(p.total, progressIndex - p.start))
+          : 0;
     const status = isPhase1
       ? (phase1Unlocked ? 'done' : 'current')
       : !phase1Unlocked
         ? 'locked'
-        : progressIndex > p.start + p.total - 1
+        : isPhase2
+          ? (phase2Complete ? 'done' : 'current')
+          : !phase2Complete
+            ? 'locked'
+            : progressIndex > p.start + p.total - 1
           ? 'done'
           : progressIndex >= p.start
             ? 'current'
@@ -777,7 +900,7 @@ export default function App() {
     { icon: '🔗', title: 'Mi primera sílaba', unlocked: syllablesDoneCount >= 1 },
     { icon: '📖', title: 'Mi primera palabra', unlocked: wordsDoneCount >= 1 },
     { icon: '🎯', title: 'Todos los sonidos', unlocked: lettersDoneCount >= PHASE1_TOTAL },
-    { icon: '🧠', title: 'Todas las sílabas', unlocked: syllablesDoneCount >= 4 },
+    { icon: '🧠', title: 'Todas las sílabas', unlocked: syllablesDoneCount >= syllablesTotal },
     { icon: '🏆', title: '¡Aventura completa!', unlocked: appComplete },
   ];
 
@@ -813,6 +936,7 @@ export default function App() {
   const learningNow = !appComplete ? [missionLabel] : [];
   const masteredList = [
     ...phase1LetterSequence.slice(0, phase1DoneLetters).map((l) => l.char),
+    ...phase2DoneIds.map((id) => getPhase2Syllable(id).char),
     ...doneSteps.map((step) => (step.type === 'syllable' ? getSyllable(step.id).text : getWord(step.id).text)),
   ];
 
@@ -876,6 +1000,8 @@ export default function App() {
           missionIcon={missionIcon}
           missionLabel={missionLabel}
           goToRecommended={goToRecommended}
+          missionBlockedByDailyLimit={missionBlockedByDailyLimit}
+          nextUnlockAt={nextUnlockAt}
           progressPercent={percent}
           lettersDoneCount={lettersDoneCount}
           syllablesDoneCount={syllablesDoneCount}
@@ -945,7 +1071,9 @@ export default function App() {
           lettersDoneCount={lettersDoneCount}
           lettersTotal={PHASE1_TOTAL}
           syllablesDoneCount={syllablesDoneCount}
+          syllablesTotal={syllablesTotal}
           wordsDoneCount={wordsDoneCount}
+          wordsTotal={wordsTotal}
           learningNow={learningNow}
           masteredList={masteredList}
           practiceTimeLabel={practiceTimeLabel}
@@ -967,9 +1095,32 @@ export default function App() {
           openPhase1Letter={openPhase1Letter}
           lockedMessage={state.lockedMessage}
           lockedToastVisible={state.lockedToastVisible}
+          lockedReason={state.lockedReason}
+          phase2PaceBlockKey={phase2PaceBlockKey}
+          phase2Levels={phase2Levels}
+          phase2Level={state.phase2Level}
+          phase2Done={getReviewState(profile).phase2Done || []}
+          openPhase2Level={openPhase2Level}
+          openPhase2Syllable={openPhase2Syllable}
+          dailyLimitReached={dailyLimitReached}
+          nextUnlockAt={nextUnlockAt}
         />
       );
       break;
+    case 'phase2-syllable-activity': {
+      const sylItem = phase2Levels.flatMap((l) => l.blocks.flatMap((b) => b.letters)).find((x) => x.id === state.phase2ActiveId);
+      const SyllableScreen = (state.phase2ActiveId || '').startsWith('p2-3-') ? SyllableBalloonActivity : SyllableActivity;
+      ScreenView = (
+        <SyllableScreen
+          key={state.phase2ActiveId}
+          syllable={sylItem ? sylItem.char : 'AI'}
+          onComplete={completePhase2Syllable}
+          onClose={() => navigateWithTransition('phase-detail')}
+          onMiniActivity={onPhase1MiniActivity}
+        />
+      );
+      break;
+    }
     case 'phase1-letter-activity': {
       const seqItem = phase1LetterSequence[state.phase1ActiveIndex] || phase1LetterSequence[0];
       ScreenView = (
@@ -1108,6 +1259,7 @@ export default function App() {
             zIndex: 999,
           }}
         />
+        <PaceModal open={state.paceModalOpen} nextUnlockAt={nextUnlockAt} maxBlocks={MAX_BLOCKS_PER_DAY} onClose={() => update({ paceModalOpen: false })} />
         <UpdatePrompt visible={state.updateAvailable} onUpdate={applyUpdate} />
         <RewardModal
           open={state.rewardOpen}

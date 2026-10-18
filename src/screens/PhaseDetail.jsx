@@ -1,8 +1,9 @@
 import { IconButton } from '../components/Button.jsx';
 import Card from '../components/Card.jsx';
+import Countdown from '../components/Countdown.jsx';
 
 function LetterChip({ letter, status, textColor, onSelect, wide }) {
-  const locked = status === 'locked';
+  const locked = status === 'locked' || status === 'daily-locked';
   const current = status === 'current';
   return (
     <div
@@ -50,7 +51,7 @@ function LetterChip({ letter, status, textColor, onSelect, wide }) {
             width: 26,
             height: 26,
             borderRadius: '50%',
-            background: 'oklch(55% 0.02 250)',
+            background: status === 'daily-locked' ? 'var(--color-warning-ink)' : 'oklch(55% 0.02 250)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -58,7 +59,7 @@ function LetterChip({ letter, status, textColor, onSelect, wide }) {
             boxShadow: '0 2px 6px oklch(20% 0.05 250 / 0.35)',
           }}
         >
-          🔒
+          {status === 'daily-locked' ? '⏳' : '🔒'}
         </div>
       )}
       {status === 'done' && (
@@ -108,7 +109,7 @@ function LetterChip({ letter, status, textColor, onSelect, wide }) {
   );
 }
 
-function DayBlock({ day, letterStatuses, onSelectLetter }) {
+function DayBlock({ day, letterStatuses, onSelectLetter, dailyLocked, nextUnlockAt }) {
   const allDone = letterStatuses.every((s) => s === 'done');
   return (
     <div style={{ position: 'relative', marginBottom: 56 }}>
@@ -147,6 +148,27 @@ function DayBlock({ day, letterStatuses, onSelectLetter }) {
             ✓ Completo
           </div>
         )}
+        {dailyLocked && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 14,
+              right: 16,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'oklch(100% 0 0 / 0.25)',
+              border: '1px solid oklch(100% 0 0 / 0.4)',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-full)',
+            }}
+          >
+            ⏳ <Countdown targetMs={nextUnlockAt} />
+          </div>
+        )}
         <div
           style={{
             width: 78,
@@ -163,9 +185,9 @@ function DayBlock({ day, letterStatuses, onSelectLetter }) {
         >
           {day.emoji}
         </div>
-        <div style={{ color: '#fff', opacity: 0.85, fontSize: 18, marginTop: 4, lineHeight: 1 }}>▾</div>
+        {!day.label && <div style={{ color: '#fff', opacity: 0.85, fontSize: 18, marginTop: 4, lineHeight: 1 }}>▾</div>}
         <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: 24, color: '#fff', marginTop: 2 }}>
-          Día {day.day}
+          {day.label ?? `Día ${day.day}`}
         </div>
       </div>
       <div
@@ -205,8 +227,19 @@ export default function PhaseDetail({
   openPhase1Letter,
   lockedMessage,
   lockedToastVisible,
+  lockedReason,
+  dailyLimitReached,
+  nextUnlockAt,
+  phase2Levels,
+  phase2Level,
+  phase2Done,
+  phase2PaceBlockKey,
+  openPhase2Level,
+  openPhase2Syllable,
 }) {
   const isPhase1 = activePhase === 1;
+  const isPhase2 = activePhase === 2;
+  const activeLevel = isPhase2 && phase2Level ? phase2Levels.find((l) => l.level === phase2Level) : null;
 
   // Running counter across days so unlocking is per-letter, not per-day.
   let flatIndex = 0;
@@ -238,13 +271,93 @@ export default function PhaseDetail({
         </div>
       </div>
 
-      {isPhase1 ? (
+      {isPhase2 ? (
+        activeLevel ? (
+          <div style={{ marginTop: 32 }}>
+            <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 15, color: 'var(--color-text-muted)', marginBottom: 20 }}>
+              Nivel {activeLevel.level} · {activeLevel.title}
+            </div>
+            {activeLevel.blocks.map((block) => {
+              // Strictly sequential across the whole level: a syllable is
+              // 'current' only once everything before it (in earlier blocks
+              // too) is done.
+              const order = activeLevel.blocks.flatMap((b) => b.letters.map((x) => x.id));
+              const paceBlocked = phase2PaceBlockKey === `${activeLevel.level}-${block.day}`;
+              const statuses = block.letters.map((l) => {
+                if (phase2Done.includes(l.id)) return 'done';
+                const idx = order.indexOf(l.id);
+                const isCurrent = idx === 0 || phase2Done.includes(order[idx - 1]);
+                if (isCurrent && paceBlocked) return 'daily-locked';
+                return isCurrent ? 'current' : 'locked';
+              });
+              return (
+                <DayBlock
+                  key={block.day}
+                  day={block}
+                  letterStatuses={statuses}
+                  onSelectLetter={(li) => openPhase2Syllable(block.letters[li].id, statuses[li] === 'locked')}
+                  dailyLocked={paceBlocked}
+                  nextUnlockAt={nextUnlockAt}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {phase2Levels.map((lv) => {
+              // A level opens only once the previous level is fully done.
+              const prev = phase2Levels.find((l) => l.level === lv.level - 1);
+              const levelLocked = !!prev && !prev.blocks.every((b) => b.letters.every((x) => phase2Done.includes(x.id)));
+              return (
+              <Card key={lv.level} onClick={() => openPhase2Level(lv.level, levelLocked)} style={{ display: 'flex', alignItems: 'center', gap: 14, opacity: levelLocked ? 0.6 : 1 }}>
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 'var(--radius-lg)',
+                    background: 'linear-gradient(150deg, var(--color-primary) 0%, oklch(60% 0.16 235) 100%)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: "'Fredoka', sans-serif",
+                    fontWeight: 700,
+                    fontSize: 22,
+                    flexShrink: 0,
+                  }}
+                >
+                  {lv.level}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 17, color: 'var(--color-text-strong)' }}>
+                    Nivel {lv.level}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600, marginTop: 2 }}>{lv.title}</div>
+                </div>
+                {levelLocked ? (
+                  <span style={{ fontSize: 20 }}>🔒</span>
+                ) : (
+                  <span style={{ color: 'var(--color-primary-dark)', fontWeight: 700, fontSize: 13 }}>Ver ›</span>
+                )}
+              </Card>
+              );
+            })}
+          </div>
+        )
+      ) : isPhase1 ? (
         <div style={{ marginTop: 32 }}>
           {phase1Days.map((day) => {
+            const dayStartsHere = flatIndex;
+            // The very next fresh day is "daily-locked" (rather than plainly
+            // "locked") when the child already used up today's 2 new-day
+            // unlocks — it shows a countdown instead of an indefinite lock.
+            const isDailyLocked = dailyLimitReached && dayStartsHere === phase1DoneLetters;
             const letterStatuses = day.letters.map(() => {
               const idx = flatIndex;
               flatIndex += 1;
-              return idx < phase1DoneLetters ? 'done' : idx === phase1DoneLetters ? 'current' : 'locked';
+              if (idx < phase1DoneLetters) return 'done';
+              if (idx === phase1DoneLetters) return isDailyLocked ? 'daily-locked' : 'current';
+              return 'locked';
             });
             const startIndex = flatIndex - day.letters.length;
             return (
@@ -253,6 +366,8 @@ export default function PhaseDetail({
                 day={day}
                 letterStatuses={letterStatuses}
                 onSelectLetter={(li) => openPhase1Letter(startIndex + li)}
+                dailyLocked={isDailyLocked}
+                nextUnlockAt={nextUnlockAt}
               />
             );
           })}
@@ -328,6 +443,11 @@ export default function PhaseDetail({
         }}
       >
         {lockedMessage}
+        {lockedToastVisible && lockedReason === 'daily-limit' && (
+          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
+            <Countdown targetMs={nextUnlockAt} />
+          </div>
+        )}
       </div>
     </div>
   );

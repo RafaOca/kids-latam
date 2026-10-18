@@ -44,8 +44,8 @@ const VIDEO2_OVERRIDES = {
   'p1-p': `${R2_BASE}/video-4-balao.mp4`,
   'p1-t': `${R2_BASE}/video-4-balao-T.mp4`,
 };
-const VIDEO2_GENERAL_DRAG = `${R2_BASE}/video-2-letra-geral.mp4`;
-const VIDEO2_GENERAL_BALLOON = `${R2_BASE}/video-4-balao-geral.mp4`;
+export const VIDEO2_GENERAL_DRAG = `${R2_BASE}/video-2-letra-geral.mp4`;
+export const VIDEO2_GENERAL_BALLOON = `${R2_BASE}/video-4-balao-geral.mp4`;
 
 function video2For(letter) {
   if (VIDEO2_OVERRIDES[letter.id]) return VIDEO2_OVERRIDES[letter.id];
@@ -76,7 +76,7 @@ const BALLOON_YOUR_TURN_AUDIO_URL = `${R2_BASE}/agora-e-sua-vez.MP3`;
 // Plays a short remote audio clip (letter pronunciation / sound sample).
 // Fire-and-forget: playback errors (e.g. blocked autoplay before any user
 // gesture) are swallowed since these are always triggered by a tap.
-function playAudio(url) {
+export function playAudio(url) {
   if (!url) return;
   const audio = new Audio(url);
   audio.play().catch(() => {});
@@ -84,7 +84,7 @@ function playAudio(url) {
 
 // ---- shared little building blocks ----
 
-function LetterVideo({ src, onPlay }) {
+export function LetterVideo({ src, onPlay }) {
   return (
     <video
       key={src}
@@ -104,7 +104,7 @@ function LetterVideo({ src, onPlay }) {
   );
 }
 
-function VideoPlaceholder({ label }) {
+export function VideoPlaceholder({ label }) {
   return (
     <div
       style={{
@@ -195,7 +195,7 @@ function RuledPaper({ letter, watermarkSize }) {
   );
 }
 
-function DotsNav({ level, unlockedCount, levelCount }) {
+export function DotsNav({ level, unlockedCount, levelCount }) {
   return (
     <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
       {Array.from({ length: levelCount }).map((_, i) => {
@@ -224,7 +224,7 @@ function DotsNav({ level, unlockedCount, levelCount }) {
   );
 }
 
-function ArrowButton({ dir, onClick, shake }) {
+export function ArrowButton({ dir, onClick, shake }) {
   return (
     <IconButton
       onClick={onClick}
@@ -240,7 +240,7 @@ function ArrowButton({ dir, onClick, shake }) {
 // A rounded card showing the letter's mouth-shape photo (portrait 3:4 frame,
 // never cropped tight) with a "tap to listen" label underneath. Shared by
 // Level1 (bigger) and the sustain-sound level (smaller, "Sonido" variant).
-function SoundMouthButton({ letter, played, onPlay, shakeButton, size = 190 }) {
+export function SoundMouthButton({ letter, played, onPlay, shakeButton, size = 190 }) {
   const compact = size < 150;
   return (
     <div
@@ -345,7 +345,7 @@ const SUSTAIN_ROUNDS = 3;
 // A hand that visibly taps down (press), slides across the track (drag),
 // then lifts and fades out before looping — a clear "tap and drag" mime,
 // shown once above the first round until the child makes their first move.
-function DragHint() {
+export function DragHint({ travel }) {
   return (
     <div
       style={{
@@ -366,6 +366,7 @@ function DragHint() {
           transformOrigin: '30% 20%',
           filter: 'drop-shadow(0 3px 4px oklch(0% 0 0 / 0.25))',
           animation: 'dragHintMove 1.8s cubic-bezier(0.45,0,0.55,1) infinite',
+          ...(travel ? { '--travel': travel } : {}),
         }}
       >
         🖐️
@@ -376,9 +377,9 @@ function DragHint() {
           8% { opacity: 1; transform: translateX(0) scale(1); }
           18% { transform: translateX(0) scale(0.82); }
           28% { transform: translateX(0) scale(0.88); }
-          68% { transform: translateX(min(58vw, 220px)) scale(0.88); opacity: 1; }
-          80% { transform: translateX(min(58vw, 220px)) scale(1); opacity: 1; }
-          92% { opacity: 0; transform: translateX(min(58vw, 220px)) scale(1); }
+          68% { transform: translateX(var(--travel, min(58vw, 220px))) scale(0.88); opacity: 1; }
+          80% { transform: translateX(var(--travel, min(58vw, 220px))) scale(1); opacity: 1; }
+          92% { opacity: 0; transform: translateX(var(--travel, min(58vw, 220px))) scale(1); }
           100% { opacity: 0; transform: translateX(0) scale(1); }
         }
       `}</style>
@@ -391,7 +392,7 @@ const TRACK_CONFETTI_HUES = [235, 40, 340, 150];
 // A short, contained confetti pop that bursts right above a single track
 // the instant it's completed — a small, local echo of the big final
 // celebration so each round feels rewarding on its own.
-function TrackConfetti() {
+export function TrackConfetti() {
   const pieces = useRef(
     Array.from({ length: 18 }).map((_, i) => ({
       left: 10 + Math.random() * 80,
@@ -441,7 +442,8 @@ function TrackConfetti() {
 // the handle's position — a pure visual guide with no sound of its own.
 const GUIDE_SIZE = 78;
 
-function SustainTrack({ letter, progress, setProgress, active, done, locked, shakeTrack, showHint, onFirstDrag }) {
+export function SustainTrack({ letter, progress, setProgress, active, done, locked, shakeTrack, showHint, onFirstDrag, guideSize, hintTravel }) {
+  const gs = guideSize || GUIDE_SIZE;
   const trackRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
@@ -520,10 +522,10 @@ function SustainTrack({ letter, progress, setProgress, active, done, locked, sha
             style={{
               position: 'absolute',
               bottom: '100%',
-              left: `calc(${progress * 100}% - ${GUIDE_SIZE / 2}px)`,
+              left: guideSize ? `clamp(0px, calc(${progress * 100}% - ${gs / 2}px), calc(100% - ${gs}px))` : `calc(${progress * 100}% - ${gs / 2}px)`,
               marginBottom: 14,
-              width: GUIDE_SIZE,
-              height: GUIDE_SIZE,
+              width: gs,
+              height: gs,
               borderRadius: 'var(--radius-xl)',
               background: '#fff',
               boxShadow: 'var(--shadow-elevated)',
@@ -579,7 +581,7 @@ function SustainTrack({ letter, progress, setProgress, active, done, locked, sha
           </div>
         )}
 
-        {showHint && <DragHint />}
+        {showHint && <DragHint travel={hintTravel} />}
 
         <div
           onPointerDown={onPointerDown}
@@ -679,7 +681,7 @@ function LevelSustain({ letter, progresses, setProgress, activeIndex, shakeTrack
 
 // ---- Balloon-popping rounds (hard-stop consonants only) ----
 
-const BALLOON_PALETTE = [
+export const BALLOON_PALETTE = [
   { bg: 'linear-gradient(160deg, oklch(78% 0.16 20), oklch(60% 0.18 10))', text: '#fff', knot: 'oklch(56% 0.18 10)' },
   { bg: 'linear-gradient(160deg, oklch(80% 0.15 150), oklch(62% 0.17 160))', text: '#fff', knot: 'oklch(58% 0.17 160)' },
   { bg: 'linear-gradient(160deg, oklch(78% 0.15 260), oklch(58% 0.18 250))', text: '#fff', knot: 'oklch(54% 0.18 250)' },
@@ -688,7 +690,7 @@ const BALLOON_PALETTE = [
 // A single balloon: pulses while it's the active/tappable one, pops into a
 // checkmark once popped, and sits dimmed+inert while still locked behind an
 // earlier balloon in the sequence.
-function Balloon({ char, colorIndex, status, onPop }) {
+export function Balloon({ char, colorIndex, status, onPop }) {
   const palette = BALLOON_PALETTE[colorIndex % BALLOON_PALETTE.length];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 84 }}>
@@ -785,7 +787,7 @@ function Balloon({ char, colorIndex, status, onPop }) {
 
 // An omnidirectional confetti pop, centered on a just-popped balloon —
 // pieces fly outward in a ring rather than just drifting upward.
-function BalloonBurst() {
+export function BalloonBurst() {
   const pieces = useRef(
     Array.from({ length: 22 }).map((_, i) => {
       const angle = (i / 22) * Math.PI * 2 + Math.random() * 0.3;

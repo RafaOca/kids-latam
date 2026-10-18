@@ -25,7 +25,8 @@ export const words = [
 // below (31 real letters/sounds). `adventureSteps` now only covers the
 // syllable/word phases (2 and 3), which stay gated behind Phase 1 completion.
 export const adventureSteps = [
-  { type: 'syllable', id: 'ma' }, { type: 'syllable', id: 'pa' },
+  // 'ma'/'pa' moved into the real Phase 2 (`phase2Levels`, tracked by
+  // review_state.phase2Done); only the legacy complex syllables + words remain.
   { type: 'syllable', id: 'sa' }, { type: 'syllable', id: 'pe' },
   { type: 'word', id: 'mapa' }, { type: 'word', id: 'pesa' },
 ];
@@ -376,3 +377,59 @@ export const stepStatus = (index, progressIndex) => {
   if (index === progressIndex) return 'current';
   return 'locked';
 };
+
+// Phase 2 ("Sílabas simples") interface skeleton: 3 levels, each a list of
+// numbered blocks (no "Día N") with 3 syllable buttons. Only the UI exists
+// for now — the per-syllable activities come later.
+const PHASE2_RAW_LEVELS = [
+  {
+    level: 1,
+    title: 'Vocal + Vocal',
+    blocks: [['AI', 'AU', 'AE'], ['EI', 'OU', 'UI'], ['EU', 'AO', 'IA']],
+  },
+  {
+    level: 2,
+    title: 'Vocal + Consonante I',
+    blocks: [['MA', 'MO', 'MU'], ['SA', 'SO', 'SU'], ['LA', 'LO', 'LU'], ['MI', 'SI', 'LO']],
+  },
+  {
+    level: 3,
+    title: 'Vocal + Consonante II',
+    blocks: [['PA', 'PE', 'PO'], ['TA', 'TE', 'TO'], ['DA', 'DE', 'DO'], ['PI', 'TU', 'DI']],
+  },
+];
+const PHASE2_BLOCK_STYLE = [
+  { emoji: '🐶', hue: 235 },
+  { emoji: '🐱', hue: 20 },
+  { emoji: '🐸', hue: 150 },
+  { emoji: '🦊', hue: 55 },
+];
+export const phase2Levels = PHASE2_RAW_LEVELS.map((lv) => ({
+  level: lv.level,
+  title: lv.title,
+  blocks: lv.blocks.map((syls, bi) => {
+    const st = PHASE2_BLOCK_STYLE[(bi + lv.level - 1) % PHASE2_BLOCK_STYLE.length];
+    return {
+      day: bi + 1,
+      label: String(bi + 1),
+      emoji: st.emoji,
+      color: `oklch(64% 0.15 ${st.hue})`,
+      textColor: `oklch(42% 0.14 ${st.hue})`,
+      letters: syls.map((t, si) => ({ id: `p2-${lv.level}-${bi + 1}-${si + 1}`, char: t })),
+    };
+  }),
+}));
+
+export const getPhase1LetterByChar = (ch) => phase1LetterSequence.find((l) => l.char === ch);
+
+// Every Phase 2 syllable has an activity now (levels 1-2: blend flow,
+// level 3: balloon flow).
+export const PHASE2_ALL_IDS = phase2Levels.flatMap((l) => l.blocks.flatMap((b) => b.letters.map((x) => x.id)));
+export const PHASE2_TOTAL = PHASE2_ALL_IDS.length;
+export const PHASE2_ACTIVE_SYLLABLES = new Set(PHASE2_ALL_IDS);
+export const getPhase2Syllable = (id) =>
+  phase2Levels.flatMap((l) => l.blocks.flatMap((b) => b.letters)).find((x) => x.id === id);
+
+// Flat, ordered id list per level — drives the strictly sequential unlock.
+export const phase2LevelOrder = (level) =>
+  phase2Levels.find((l) => l.level === level).blocks.flatMap((b) => b.letters.map((x) => x.id));

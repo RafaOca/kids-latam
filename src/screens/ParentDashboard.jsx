@@ -18,7 +18,9 @@ export default function ParentDashboard({
   lettersDoneCount,
   lettersTotal = 31,
   syllablesDoneCount,
+  syllablesTotal = 4,
   wordsDoneCount,
+  wordsTotal = 2,
   learningNow,
   masteredList,
   practiceTimeLabel,
@@ -62,8 +64,8 @@ export default function ParentDashboard({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 14 }}>
         <StatBox icon="🔤" label="Letras" value={`${lettersDoneCount} / ${lettersTotal}`} />
-        <StatBox icon="🧩" label="Sílabas" value={`${syllablesDoneCount} / 4`} />
-        <StatBox icon="📖" label="Palabras" value={`${wordsDoneCount} / 2`} />
+        <StatBox icon="🧩" label="Sílabas" value={`${syllablesDoneCount} / ${syllablesTotal}`} />
+        <StatBox icon="📖" label="Palabras" value={`${wordsDoneCount} / ${wordsTotal}`} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
